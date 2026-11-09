@@ -1,5 +1,7 @@
 # The remaining desktop handoff stall
 
+The subsequent [whole-story retest](scroll-retest-2026-11-09.md) found and reduced another opening-return compositing hitch. It records the latest published release, native Chrome/Edge measurements and remaining shorter frame-delivery gaps.
+
 This follow-up isolates the 95ms gap reported after the earlier desktop repair. It preserves the site's scene order, character action, camera geometry, typography, copy, source media and phone animation path.
 
 ## Confirmed cause

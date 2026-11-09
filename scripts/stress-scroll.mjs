@@ -21,24 +21,27 @@ if(width<=700)await run('Emulation.setTouchEmulationEnabled',{enabled:true});
 await run('Page.navigate',{url});await run('Page.bringToFront');
 await new Promise(resolve=>setTimeout(resolve,5000));
 await evaluate(`(()=>{
- const frames=[],stalls=[],samples=[],errors=[],tasks=[];let alive=true,lastFrame=performance.now(),lastEntryFrame=lastFrame,lastMotion=lastFrame,motionStart=lastFrame,lastY=scrollY,surface='',surfaceStart=lastFrame;
+ const frames=[],stalls=[],samples=[],errors=[],tasks=[],raf=[];let alive=true,lastFrame=performance.now(),lastEntryFrame=lastFrame,lastMotion=lastFrame,motionStart=lastFrame,lastY=scrollY,surface='',surfaceStart=lastFrame,lastTick=0;
  const listeners=[];
  for(const surface of document.querySelectorAll('.independent-surface')){const handler=event=>{frames.push({at:performance.now(),index:event.detail.index,entry:surface.classList.contains('entry-film')});if(surface.classList.contains('journey-film'))lastFrame=performance.now();else lastEntryFrame=performance.now();};surface.addEventListener('framepresented',handler);listeners.push(()=>surface.removeEventListener('framepresented',handler));}
  const film=document.querySelector('.journey-film:not(canvas)');let frameCallback;
  if(!document.querySelector('.journey-film.independent-surface')&&film?.requestVideoFrameCallback){const tick=(_,meta)=>{lastFrame=performance.now();frames.push({at:lastFrame,index:meta.mediaTime*24});if(alive)frameCallback=film.requestVideoFrameCallback(tick);};frameCallback=film.requestVideoFrameCallback(tick);}
  const po=new PerformanceObserver(list=>tasks.push(...list.getEntries().map(e=>({at:e.startTime,duration:e.duration}))));po.observe({entryTypes:['longtask']});
  const onError=e=>errors.push(e.message||e.reason?.message||String(e.reason));window.addEventListener('error',onError);window.addEventListener('unhandledrejection',onError);
- function tick(now){if(!alive)return;const moving=Math.abs(scrollY-lastY)>2;if(moving){if(now-lastMotion>100)motionStart=now;lastMotion=now;}const stage=document.querySelector('.story-canvas'),visible=Number(getComputedStyle(stage).opacity)>.99;
-  const next=visible?'story':Number(getComputedStyle(document.querySelector('.entry-layer')).opacity)>.02?'entry':'';if(next!==surface){surface=next;surfaceStart=now;}
+ function tick(timestamp){if(!alive)return;if(lastTick)raf.push(timestamp-lastTick);lastTick=timestamp;const now=performance.now(),moving=Math.abs(scrollY-lastY)>2;if(moving){if(now-lastMotion>100)motionStart=now;lastMotion=now;}const stage=document.querySelector('.story-canvas'),visible=Number(getComputedStyle(stage).opacity)>.99,phase=document.querySelector('.journey-media').dataset.phase;
+  const next=visible?(phase==='idle'?'':'story'):Number(getComputedStyle(document.querySelector('.entry-layer')).opacity)>.02?'entry':'';if(next!==surface){surface=next;surfaceStart=now;}
   const gap=now-Math.max(surface==='entry'?lastEntryFrame:lastFrame,motionStart,surfaceStart);if(surface&&moving&&gap>${Number(args['stall-ms']||150)})stalls.push({at:now,gap,y:scrollY,surface});
-  samples.push({at:now,y:scrollY,visible,age:now-lastFrame,surface,gap});lastY=scrollY;requestAnimationFrame(tick);
+  samples.push({at:now,y:scrollY,visible,phase,age:now-lastFrame,surface,gap,moving});lastY=scrollY;requestAnimationFrame(tick);
  }requestAnimationFrame(tick);
- window.__stress={snapshot:()=>({y:scrollY,ready:document.querySelector('.journey-media').dataset.ready,phase:document.querySelector('.journey-media').dataset.phase,canvas:document.querySelectorAll('canvas').length,visible:Number(getComputedStyle(document.querySelector('.story-canvas')).opacity),source:film?.currentSrc,width:film?.videoWidth,height:film?.videoHeight}),finish:()=>{alive=false;po.disconnect();listeners.forEach(fn=>fn());if(frameCallback)film.cancelVideoFrameCallback(frameCallback);window.removeEventListener('error',onError);window.removeEventListener('unhandledrejection',onError);return {frames,stalls,samples,errors,tasks};}};
+ window.__stress={snapshot:()=>({y:scrollY,ready:document.querySelector('.journey-media').dataset.ready,phase:document.querySelector('.journey-media').dataset.phase,canvas:document.querySelectorAll('canvas').length,visible:Number(getComputedStyle(document.querySelector('.story-canvas')).opacity),source:film?.currentSrc,width:film?.videoWidth,height:film?.videoHeight}),finish:()=>{alive=false;po.disconnect();listeners.forEach(fn=>fn());if(frameCallback)film.cancelVideoFrameCallback(frameCallback);window.removeEventListener('error',onError);window.removeEventListener('unhandledrejection',onError);return {frames,stalls,samples,errors,tasks,raf};}};
 })()`);
 const checkpoints=[];
 // Native compositor input, including an abrupt direction reversal in each leg.
-for(const [i,distance] of [height*7.5,-height*6.5,height*7,-height*5.5,height*7.5,-height*8].entries()){
- await run('Input.synthesizeScrollGesture',{x:Math.round(width*.65),y:Math.round(height*.65),yDistance:-distance,speed:height*5,gestureSourceType:width<=700?'touch':'mouse'});
+const entrance=args.route==='entrance';
+const legs=entrance?[height*2,-height*2,height*2,-height*2,height*2,-height*2,height*2,-height*2]:[height*7.5,-height*6.5,height*7,-height*5.5,height*7.5,-height*8];
+const distances=Array.from({length:Number(args.repeat||1)},()=>legs).flat();
+for(const [i,distance] of distances.entries()){
+ await run('Input.synthesizeScrollGesture',{x:Math.round(width*.65),y:Math.round(height*.65),yDistance:-distance,speed:height*(entrance ? .8 : 5),gestureSourceType:width<=700?'touch':'mouse'});
  await new Promise(resolve=>setTimeout(resolve,120));checkpoints.push({leg:i,...await evaluate('__stress.snapshot()')});
 }
 // Separate discontinuous jumps verify that no old request traps the new target.
@@ -52,6 +55,7 @@ for(const [i,position] of [.17,.88,.28,.98,.18,.76,.4].entries()){
  }
 }
 const measurements=await evaluate('__stress.finish()');
-const summary={url,width,height,checkpoints,frames:measurements.frames.length,stalledSamples:measurements.stalls.length,maxMovingStall:Math.max(0,...measurements.stalls.map(s=>s.gap)),errors:measurements.errors,longTasks:measurements.tasks};
+const sorted=measurements.raf.toSorted((a,b)=>a-b);
+const summary={url,width,height,route:args.route||'story',repeat:Number(args.repeat||1),checkpoints,frames:measurements.frames.length,stalledSamples:measurements.stalls.length,maxMovingStall:Math.max(0,...measurements.stalls.map(s=>s.gap)),movingGaps:{over50:measurements.samples.filter(s=>s.surface&&s.moving&&s.gap>50).length,over80:measurements.samples.filter(s=>s.surface&&s.moving&&s.gap>80).length},raf:{p95:sorted[Math.floor(sorted.length*.95)],max:Math.max(0,...sorted)},errors:measurements.errors,longTasks:measurements.tasks};
 await fs.writeFile(path.join(out,'stress.json'),JSON.stringify({summary,...measurements},null,2));
 console.log(JSON.stringify(summary,null,2));await call('Target.closeTarget',{targetId});ws.close();

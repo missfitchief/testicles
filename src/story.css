@@ -73,5 +73,6 @@
 .entry-layer[data-ready="true"] .entry-film{opacity:1}
 .entry-layer[data-ready="true"] .entry-poster{opacity:0}
 @media(min-width:701px){.entry-crop.frame-mask-ready{mask-image:none}}
+@media(min-width:701px){.entry-hero-cover{position:absolute;inset:0;z-index:20;background:var(--paper);opacity:0;pointer-events:none;will-change:opacity}}
 @media(min-width:701px){.hero-art{mask-image:none}.hero-art::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(to bottom,var(--paper),transparent 12%,transparent 83%,var(--paper))}}
 @media(max-width:700px){.connected-experience.is-connected{height:calc(var(--hero-height) + 1180svh)}.entry-crop{mask-image:linear-gradient(to bottom,transparent 8.4%,black 12%,black 83%,transparent 91.6%)}}

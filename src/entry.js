@@ -1,3 +1,5 @@
+import { createDepartureFade } from './departure-fade.js';
+
 const clamp=v=>Math.max(0,Math.min(1,v));
 const smooth=v=>{v=clamp(v);return v*v*(3-2*v);};
 const mix=(a,b,p)=>a+(b-a)*p;
@@ -10,6 +12,7 @@ export function createEntrance(root,narrow,storyDuration,reduce){
   const video=root.querySelector('.entry-film');
   if(!wrapper||!hero||!video)return null;
   const heroVideo=hero.querySelector('video');
+  const departureFade=createDepartureFade(hero,narrow);
   const art=hero.querySelector('.hero-art');
   const layer=root.querySelector('.entry-layer');
   const crop=root.querySelector('.entry-crop');
@@ -81,7 +84,7 @@ export function createEntrance(root,narrow,storyDuration,reduce){
     canvas.inert=raw<1;
     for(const node of chrome)node.style.opacity=String(1-smooth(p/.22));
     // Keep the original artwork beneath the incoming film until it is opaque.
-    hero.style.opacity=String(1-smooth((p-.12)/.12));
+    departureFade.setOpacity(1-smooth((p-.12)/.12));
     hero.inert=p>=.23;
     const nextDeparted=p>.015;
     if(nextDeparted!==departed){
@@ -105,6 +108,6 @@ export function createEntrance(root,narrow,storyDuration,reduce){
   return {video,layer,share,duration,measure,update,
     get maskGeometry(){return geometry&&{startBox:geometry.start,endBox:geometry.end,startFrame:geometry.startFrame,endFrame:geometry.endFrame};},
     start(){return Math.max(0,hero.offsetHeight-(narrow.matches?root.querySelector('.story-stage').clientHeight:innerHeight));},
-    dispose(){disposed=true;wrapper.classList.remove('is-connected');wrapper.style.removeProperty('--hero-height');hero.style.removeProperty('opacity');hero.style.removeProperty('pointer-events');root.style.removeProperty('pointer-events');for(const node of chrome)node.style.removeProperty('opacity');captions?.style.removeProperty('opacity');hero.inert=false;canvas.inert=false;delete hero.dataset.departed;}
+    dispose(){disposed=true;departureFade.dispose();wrapper.classList.remove('is-connected');wrapper.style.removeProperty('--hero-height');hero.style.removeProperty('opacity');hero.style.removeProperty('pointer-events');root.style.removeProperty('pointer-events');for(const node of chrome)node.style.removeProperty('opacity');captions?.style.removeProperty('opacity');hero.inert=false;canvas.inert=false;delete hero.dataset.departed;}
   };
 }
