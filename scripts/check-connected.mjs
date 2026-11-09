@@ -35,6 +35,18 @@ for(let i=0;i<repaired.count;i++){
  assert.equal(frame.length,repaired.packets[i][2]);
  if(i<=585||i>=1050)assert(frame.equals(fs.readFileSync(`dist/assets/scroll-frames-v1/story/${file}`)),`Unchanged story frame altered: ${i}`);
 }
+const clarity=JSON.parse(fs.readFileSync('dist/assets/scroll-frames-v4/story/manifest.json','utf8'));
+assert.equal(clarity.width,2560);assert.equal(clarity.height,1440);assert.equal(clarity.fps,60);assert.equal(clarity.count,1405);
+assert(clarity.parts.reduce((sum,part)=>sum+part.bytes,0)<128*1024*1024,'Clarity stream exceeds the existing cache');
+for(let i=0;i<clarity.count;i++){
+ const [part,offset,size]=clarity.packets[i];
+ assert(offset>=0&&size>0&&offset+size<=clarity.parts[part].bytes);
+ assert.equal(fs.statSync(`dist/assets/scroll-frames-v4/story/frames/${String(i).padStart(4,'0')}.bin`).size,size);
+}
+assert(fs.readFileSync('dist/assets/scroll-frames-v4/story/frames/0000.bin').equals(fs.readFileSync('dist/assets/scroll-frames-v3/story/frames/0000.bin')),'Entrance handoff frame changed');
+for(const [bad,clean] of Object.entries({636:635,637:638,1161:1160,1162:1163,1164:1165,1166:1165,1167:1168,1169:1170}))assert(fs.readFileSync(`dist/assets/scroll-frames-v4/story/frames/${bad.padStart(4,'0')}.bin`).equals(fs.readFileSync(`dist/assets/scroll-frames-v4/story/frames/${String(clean).padStart(4,'0')}.bin`)),`Corrupt interpolation returned at ${bad}`);
+const preserved=JSON.parse(fs.readFileSync('source-assets/desktop-clarity-preserved.json','utf8'));
+for(const [file,hash] of Object.entries(preserved))assert.equal(createHash('sha256').update(fs.readFileSync(file.replace('public/','dist/'))).digest('hex'),hash,`Protected media changed: ${file}`);
 for (const file of fs.readdirSync('dist/assets').filter(f => /\.(mp4|webp)$/.test(f))) {
   const info = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'json', `dist/assets/${file}`], { encoding: 'utf8' })).streams[0];
   assert(Math.max(info.width, info.height) >= 2048, `Below 2K: ${file}`);

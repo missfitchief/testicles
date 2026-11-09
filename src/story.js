@@ -42,7 +42,7 @@ export function mountStory(root, reduce, narrow, gsap, ScrollTrigger) {
     if(independent)entrance.measure();
     players = {
       entry: independent ? createIndependentPlayer(entrance.video,{manifest:'/assets/scroll-frames-v2/entry/manifest.json',source:source(entrance.video),count:243,maskGeometry:entrance.maskGeometry,onReady:sync,onFrame:()=>{entrance.layer.dataset.ready='true';updateEntrance();}}) : createScrollVideo(entrance.video, { source: source(entrance.video), fps: narrow.matches ? 24 : 60, onFrame: () => { entrance.layer.dataset.ready = 'true'; updateEntrance(); } }),
-      story: independent ? createIndependentPlayer(film,{manifest:'/assets/scroll-frames-v3/story/manifest.json',source:source(film),count:1405,onReady:sync,onFrame:showStory}) : createScrollVideo(film, { source: source(film), fps: narrow.matches ? 24 : 60, onFrame: showStory }),
+      story: independent ? createIndependentPlayer(film,{manifest:'/assets/scroll-frames-v4/story/manifest.json',source:source(film),count:1405,onReady:sync,onFrame:showStory}) : createScrollVideo(film, { source: source(film), fps: narrow.matches ? 24 : 60, onFrame: showStory }),
     };
     sync();
   }
