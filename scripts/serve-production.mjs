@@ -10,6 +10,6 @@ http.createServer((req,res)=>{
  const size=fs.statSync(file).size;let start=0,end=size-1,status=200;
  const range=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range||'');if(range){start=Number(range[1]);end=range[2]?Math.min(Number(range[2]),end):end;status=206;}
  if(start>end){res.writeHead(416);res.end();return;}
- const headers={'Content-Type':types[path.extname(file)]||'application/octet-stream','Content-Length':end-start+1,'Accept-Ranges':'bytes','Cache-Control':'no-cache','Content-Security-Policy':"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'"};if(status===206)headers['Content-Range']=`bytes ${start}-${end}/${size}`;
+ const headers={'Content-Type':types[path.extname(file)]||'application/octet-stream','Content-Length':end-start+1,'Accept-Ranges':'bytes','Cache-Control':'no-cache','Content-Security-Policy':"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; connect-src 'self'; base-uri 'self'; frame-ancestors 'none'"};if(status===206)headers['Content-Range']=`bytes ${start}-${end}/${size}`;
  res.writeHead(status,headers);fs.createReadStream(file,{start,end}).pipe(res);
 }).listen(port,'127.0.0.1',()=>console.log(`Production files: http://127.0.0.1:${port}`));

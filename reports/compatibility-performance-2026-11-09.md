@@ -77,3 +77,6 @@ The actual public desktop opening, trousers scene and ending were inspected, alo
 The test host uses Microsoft software graphics. Capability-disabled tests exercise fallback routes in modern Chromium, not every historical browser or physical phone. No tested route is a universal zero-stutter guarantee for arbitrary hardware or network conditions. Slow networks, failed image decoding and unsupported canvas APIs can ultimately fall back to native video; that final failure path is bounded but cannot promise the same timing. Compatibility images cost more transfer than the preferred H264 stream (about 180.2MB for the entire story, requested in nearby parts with caching). They are only fetched when the compatibility path is needed.
 
 Raw evidence: .project-state/performance-investigation/compatibility-* and .project-state/compatibility/. Browser profiles and traces are diagnostic artifacts, not shipped assets.
+
+
+Later follow-up: [loading readiness and remaining frame outliers](remaining-49ms-stutter-2026-11-09.md).

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="is-preparing">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -16,8 +16,19 @@
     <link rel="icon" type="image/png" href="/assets/icon.png" />
     <link rel="preload" href="/assets/hero-2k.webp" as="image" fetchpriority="high" />
     <title>Testicles — Big balls. Bigger HYPE.</title>
+    <script src="/startup-guard.js" defer></script>
+    <noscript><style>html.is-preparing{overflow:auto}.loading-screen{display:none!important}</style></noscript>
   </head>
   <body>
+    <section class="loading-screen" id="loading-screen" data-state="loading" aria-labelledby="loading-title" aria-busy="true">
+      <div class="loading-brand">testicles.</div>
+      <div class="loading-center">
+        <div class="loading-character" aria-hidden="true"><img src="/assets/icon.png" width="96" height="96" alt="" /></div>
+        <h2 class="loading-title" id="loading-title"><span>Hang</span><span>tight.</span></h2>
+        <div class="loading-error"><p>Something got stuck loading.</p><div class="loading-actions"><button class="loading-retry" type="button">Try again</button><button class="loading-skip" type="button">Open anyway</button></div></div>
+      </div>
+      <div class="loading-bottom"><div class="loading-meta"><span>Getting our balls together.</span><span class="loading-percent" aria-hidden="true">0%</span></div><div class="loading-track" role="progressbar" aria-label="Loading the adventure" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="loading-fill"></div></div></div>
+    </section>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="header">
       <a class="brand" href="/" aria-label="Testicles home"><img src="/assets/icon.png" width="38" height="38" alt="" /><span>testicles</span></a>
@@ -91,7 +102,7 @@
 
     </main>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/startup.js"></script>
   </body>
 </html>
 

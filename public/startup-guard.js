@@ -1,0 +1,10 @@
+(()=>{const screen=document.getElementById('loading-screen');if(!screen)return;let timer,fatal=false;
+const blocked=[document.querySelector('header'),document.querySelector('main')].filter(Boolean);blocked.forEach(node=>node.inert=true);
+const arm=()=>{clearTimeout(timer);timer=setTimeout(()=>{if(document.hidden)return arm();screen.dataset.state='error';screen.querySelector('.loading-retry')?.focus();},30000);};
+const visibility=()=>{screen.classList.toggle('is-hidden-tab',document.hidden);arm();};
+const progress=()=>{if(fatal)return;screen.dataset.state='loading';arm();};
+const error=()=>{fatal=true;clearTimeout(timer);screen.dataset.state='error';screen.setAttribute('aria-busy','false');screen.querySelector('.loading-retry')?.focus();};
+const release=()=>{clearTimeout(timer);document.removeEventListener('testicles:load-progress',progress);document.removeEventListener('testicles:load-error',error);document.removeEventListener('testicles:load-complete',release);document.removeEventListener('visibilitychange',visibility);};
+screen.querySelector('.loading-retry').addEventListener('click',()=>location.reload());
+screen.querySelector('.loading-skip').addEventListener('click',()=>{release();document.documentElement.classList.remove('is-preparing');blocked.forEach(node=>node.inert=false);screen.remove();document.dispatchEvent(new Event('testicles:load-skipped'));});
+document.addEventListener('testicles:load-progress',progress);document.addEventListener('testicles:load-error',error);document.addEventListener('testicles:load-complete',release);document.addEventListener('visibilitychange',visibility);visibility();})();

@@ -23,7 +23,8 @@ if(args.compat==='decoder-error')await run('Page.addScriptToEvaluateOnNewDocumen
 await run('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<=700});
 if(width<=700)await run('Emulation.setTouchEmulationEnabled',{enabled:true});
 await run('Page.navigate',{url});await run('Page.bringToFront');
-await new Promise(resolve=>setTimeout(resolve,5000));
+await evaluate(`new Promise((resolve,reject)=>{const until=Date.now()+120000;const check=()=>{const screen=document.querySelector('#loading-screen');if(!screen)return resolve();if(screen.dataset.state==='error')return reject(Error('Preloader entered its error state'));if(Date.now()>until)return reject(Error('Preloader did not finish'));setTimeout(check,100);};setTimeout(check,100);})`);
+await new Promise(resolve=>setTimeout(resolve,1000));
 const renderer=await evaluate(`({surfaces:[...document.querySelectorAll('.compatibility-surface')].map(s=>s.tagName),videos:[...document.querySelectorAll('video.entry-film,video.journey-film')].map(v=>v.currentSrc)})`);
 if(args.compat&&renderer.surfaces.length!==2){await call('Target.closeTarget',{targetId});ws.close();throw Error('Expected direct-image compatibility surfaces; native fallback was active: '+JSON.stringify({renderer,startupErrors}));}
 await evaluate(`(()=>{

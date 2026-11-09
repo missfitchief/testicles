@@ -35,3 +35,10 @@ test('inactive frames stop work and resume at the newest bounded target',async()
 test('hidden decode output is released and resumes when the page becomes visible',async()=>{
  const f=fixture();await f.start();f.sequence.setVisible(false);await f.finish();assert.deepEqual(f.shown,[]);assert.deepEqual(f.closed,[0]);f.sequence.setVisible(true);await f.advance(17);await f.finish();assert.deepEqual(f.shown,[0]);f.sequence.dispose();
 });
+
+test('startup preloading finishes every bounded part before reporting complete',async()=>{
+ const progress=[],fetched=[];const config={width:2560,height:1440,fps:60,count:3,mime:'image/jpeg',extension:'.jpg',frameBase:'frames/',parts:[0,1,2].map(i=>({name:`part-${i}.bin`,bytes:1})),packets:[0,1,2].map(i=>[i,0,1])};
+ const sequence=createImageSequence({fetcher:async url=>{const name=String(url);fetched.push(name);return name.endsWith('manifest.json')?{ok:true,json:async()=>config}:{ok:true,body:{getReader(){let done=false;return{async read(){if(done)return{done:true};done=true;return{done:false,value:new Uint8Array([0])};}};}},arrayBuffer:async()=>new Uint8Array([0]).buffer};},decode:async()=>({close(){}}),present:()=>false,onProgress:value=>progress.push(value)});
+ await sequence.init('https://test.test/manifest.json',{preloadAll:true});await settle();
+ assert.deepEqual(progress.at(-1),{loaded:3,total:3,complete:true});assert.equal(fetched.filter(url=>url.includes('part-')).length,3);sequence.dispose();
+});

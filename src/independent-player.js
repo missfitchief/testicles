@@ -7,6 +7,7 @@ export function createIndependentPlayer(video,{manifest,compatibilityManifest,so
  let fps=60,count=initialCount,shown=-1,active=false,desired=0,disposed=false,fallback=null,fallbackVisible=false,worker=null,initialized=false,lastHidden=document.hidden,lastMask=JSON.stringify(maskGeometry);
  const maskHost=maskGeometry?video.parentElement:null;
  const timeout=setTimeout(()=>switchToNative(),5000);
+ video.dataset??={};video.dataset.mediaReady='false';video.dataset.mediaLoaded='0';video.dataset.mediaTotal='0';
  function switchToNative(){
   if(disposed||fallback)return;clearTimeout(timeout);worker?.terminate();worker=null;
   if(compatibilityManifest){fallback=createCompatibilityPlayer(video,{manifest:compatibilityManifest,source,count,maskGeometry,onReady,onVisible:()=>canvas.remove(),onFrame(time){fallbackVisible=true;onFrame(time);}});fallback.setTime(desired/fps);fallback.setActive(active);return;}
@@ -19,10 +20,11 @@ export function createIndependentPlayer(video,{manifest,compatibilityManifest,so
    if(disposed)return;
    if(data.type==='ready'){clearTimeout(timeout);initialized=true;fps=data.fps;count=data.count;worker.postMessage({type:'time',index:desired});worker.postMessage({type:'active',value:active});onReady();}
    else if(data.type==='frame'){shown=data.index;if(data.masked)maskHost?.classList.add('frame-mask-ready');canvas.style.opacity='1';video.style.visibility='hidden';canvas.dispatchEvent(new CustomEvent('framepresented',{detail:{index:shown,at:data.at}}));onFrame(shown/fps);}
+   else if(data.type==='progress'&&!fallback){video.dataset.mediaLoaded=String(data.loaded);video.dataset.mediaTotal=String(data.total);video.dataset.mediaReady=String(data.complete);}
    else if(data.type==='error')switchToNative();
   };
   worker.onerror=switchToNative;const surface=canvas.transferControlToOffscreen();
-  worker.postMessage({type:'init',canvas:surface,manifest:new URL(manifest,location.href).href,eager:!navigator.connection?.saveData,hidden:document.hidden,maskGeometry},[surface]);
+  worker.postMessage({type:'init',canvas:surface,manifest:new URL(manifest,location.href).href,eager:document.documentElement?.classList.contains('is-preparing')||!navigator.connection?.saveData,hidden:document.hidden,maskGeometry},[surface]);
  }catch{switchToNative();}
  return {
   get ready(){return fallbackVisible||shown>=0;},get duration(){return fallback?.duration||count/fps;},get currentTime(){return fallbackVisible?fallback.currentTime:Math.max(0,shown)/fps;},

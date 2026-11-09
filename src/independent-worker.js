@@ -8,6 +8,8 @@ let maskGeometry=null, maskCanvas, maskContext;
 const pending=new Set();
 const parts=new Map(), packetCache=new Map(), requests=new Set(), packetWaiters=new Set();
 const MEMORY_LIMIT=128*1024*1024, PACKET_LIMIT=48;
+let progressAt=-Infinity;
+function progress(force=false){if(!config||disposed)return;const at=performance.now();if(!force&&at-progressAt<100)return;progressAt=at;const loaded=[...parts.values()].reduce((n,p)=>n+p.received,0),total=config.parts.reduce((n,p)=>n+p.bytes,0);postMessage({type:'progress',loaded,total,complete:loaded===total});}
 const postError=error=>{if(!failed&&!disposed){failed=true;clearTimeout(timer);clearTimeout(drain);clearTimeout(watchdog);for(const c of requests)c.abort();postMessage({type:'error',message:String(error?.message||error)});}};
 function cachedPacket(index){
  const [id,offset,size]=config.packets[index],part=parts.get(id);
@@ -37,8 +39,9 @@ function preload(id){
  parts.set(id,entry);requests.add(controller);
  fetch(new URL(config.parts[id].name,base),{signal:controller.signal,cache:'force-cache',priority:'low'}).then(async response=>{
   if(!response.ok)throw new Error('Frame preload failed');const reader=response.body.getReader();
-  for(;;){const {value,done}=await reader.read();if(done)break;if(entry.received+value.length>entry.buffer.byteLength)throw new Error('Invalid frame payload');new Uint8Array(entry.buffer,entry.received,value.length).set(value);entry.received+=value.length;wakePacketWaiters();}
- }).catch(()=>{}).finally(()=>{entry.loading=false;requests.delete(controller);trim();warm();});
+  for(;;){const {value,done}=await reader.read();if(done)break;if(entry.received+value.length>entry.buffer.byteLength)throw new Error('Invalid frame payload');new Uint8Array(entry.buffer,entry.received,value.length).set(value);entry.received+=value.length;wakePacketWaiters();progress();}
+  if(entry.received!==entry.buffer.byteLength)throw new Error('Incomplete frame preload');
+ }).catch(error=>{if(!controller.signal.aborted)postError(error);}).finally(()=>{entry.loading=false;requests.delete(controller);trim();progress(true);warm();});
 }
 async function packet(index){
  const cached=cachedPacket(index);if(cached)return {index,bytes:cached};
@@ -114,7 +117,7 @@ self.onmessage=async({data})=>{
   const options={codec:config.codec,codedWidth:config.width,codedHeight:config.height,optimizeForLatency:true,hardwareAcceleration:'no-preference'};
   if(!(await VideoDecoder.isConfigSupported(options)).supported)throw new Error('Frame decoder unsupported');
   decoder=new VideoDecoder({output(frame){const index=Math.round(frame.timestamp*config.fps/1e6);try{if((active||shown<0)&&!disposed&&!failed){drawFrame(frame,index);shown=index;postMessage({type:'frame',index:shown,masked:!!maskGeometry,at:performance.timeOrigin+performance.now()});}}catch(error){postError(error);}finally{frame.close();pending.delete(index);watchDecoder();pump();}},error:postError});decoder.configure(options);
-  postMessage({type:'ready',fps:config.fps,count:config.count});warm();pump();
+  postMessage({type:'ready',fps:config.fps,count:config.count});progress(true);warm();pump();
  }catch(error){postError(error);}
  else if(data.type==='time'){if(data.index!==desired)direction=Math.sign(data.index-desired)||direction;desired=data.index;wakePacketWaiters();warm();pump();}
  else if(data.type==='active'){active=data.value;if(active){hasBeenActive=true;warm();pump();}else{clearTimeout(timer);timer=0;}}

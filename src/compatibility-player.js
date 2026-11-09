@@ -12,6 +12,8 @@ export function createCompatibilityPlayer(video,{manifest,source,count:initialCo
  const host=maskGeometry?video.parentElement:null;
  let worker,sequence,fallback,shown=-1,desired=0,active=false,fps=60,count=initialCount,disposed=false,main=false,visible=false,hidden=document.hidden,lastMask=JSON.stringify(maskGeometry);
  const startup=setTimeout(useMain,5000);
+ function loading(data){video.dataset??={};video.dataset.mediaLoaded=String(data.loaded);video.dataset.mediaTotal=String(data.total);video.dataset.mediaReady=String(data.complete);}
+ loading({loaded:0,total:0,complete:false});
  function draw(bitmap,index){
   if(disposed){bitmap.close?.();return;}
   try{
@@ -38,10 +40,13 @@ export function createCompatibilityPlayer(video,{manifest,source,count:initialCo
  }
  function ready(data){clearTimeout(startup);fps=data.fps;count=data.count;onReady();}
  async function decode(bytes,mime){
-  const blob=new Blob([bytes],{type:mime});if(!domMode)return createImageBitmap(blob);
+  if(!domMode)return createImageBitmap(new Blob([bytes],{type:mime}));
   // Production permits self/data images, not blob URLs. Keep that policy intact.
-  const image=new Image(),reader=new FileReader();let timeout;
-  try{await new Promise((resolve,reject)=>{timeout=setTimeout(()=>{reader.abort();image.src='';reject(Error('Image decode timed out'));},1500);image.onload=resolve;image.onerror=()=>reject(Error('Image decode failed'));reader.onerror=()=>reject(Error('Image read failed'));reader.onload=()=>{image.src=reader.result;};reader.readAsDataURL(blob);});await image.decode?.();image.close=()=>{image.onload=null;image.onerror=null;image.src='';};return image;}finally{clearTimeout(timeout);reader.onload=null;reader.onerror=null;}
+  // Avoid a FileReader task followed by a load event before decoding. Those
+  // serial event-loop waits can consume several display frames on older PCs.
+  let binary='';for(let offset=0;offset<bytes.length;offset+=16384)binary+=String.fromCharCode(...bytes.subarray(offset,offset+16384));
+  const image=new Image();image.decoding='async';let timeout;
+  try{await new Promise((resolve,reject)=>{timeout=setTimeout(()=>{image.src='';reject(Error('Image decode timed out'));},1500);image.onerror=()=>reject(Error('Image decode failed'));if(!image.decode)image.onload=resolve;image.src=`data:${mime};base64,${btoa(binary)}`;if(image.decode)image.decode().then(resolve,reject);});image.close=()=>{image.onload=null;image.onerror=null;image.src='';};return image;}finally{clearTimeout(timeout);}
  }
  function useNative(){
   if(disposed||fallback)return;sequence?.dispose();worker?.terminate();worker=null;clearTimeout(startup);
@@ -50,8 +55,8 @@ export function createCompatibilityPlayer(video,{manifest,source,count:initialCo
  }
  function useMain(){
   if(disposed||main||fallback)return;main=true;clearTimeout(startup);worker?.terminate();worker=null;
-  sequence=createImageSequence({decode,present:(bitmap,index)=>{draw(bitmap,index);return true;},onReady:ready,onError:useNative});
-  sequence.setTime(desired);sequence.setActive(active);sequence.init(new URL(manifest,location.href).href,{hidden});
+  sequence=createImageSequence({decode,present:(bitmap,index)=>{draw(bitmap,index);return true;},onReady:ready,onProgress:loading,onError:useNative});
+  sequence.setTime(desired);sequence.setActive(active);sequence.init(new URL(manifest,location.href).href,{hidden,preloadAll:true});
  }
  try{
   if(domMode||!context)throw Error('Use the document image decoder');
@@ -59,10 +64,11 @@ export function createCompatibilityPlayer(video,{manifest,source,count:initialCo
   worker.onmessage=({data})=>{
    if(disposed){data.bitmap?.close?.();return;}
    if(data.type==='ready'){ready(data);worker.postMessage({type:'time',index:desired});worker.postMessage({type:'active',value:active});}
+   else if(data.type==='progress')loading(data);
    else if(data.type==='frame'){try{draw(data.bitmap,data.index);worker?.postMessage({type:'presented'});}catch{useMain();}}
    else if(data.type==='error')useMain();
   };
-  worker.onerror=useMain;worker.postMessage({type:'init',manifest:new URL(manifest,location.href).href,hidden});
+  worker.onerror=useMain;worker.postMessage({type:'init',manifest:new URL(manifest,location.href).href,hidden,preloadAll:true});
  }catch{useMain();}
  return{
   get ready(){return fallback?.ready||shown>=0;},get currentTime(){return fallback?.currentTime??Math.max(0,shown)/fps;},get duration(){return fallback?.duration||count/fps;},
