@@ -19,9 +19,12 @@ const evaluate=async(expression,awaitPromise=false)=>{const r=await run('Runtime
 await Promise.all(['Page.enable','Runtime.enable','Performance.enable','Media.enable'].map(m=>run(m)));
 if(args.network){await run('Network.enable');await run('Target.setAutoAttach',{autoAttach:true,waitForDebuggerOnStart:true,flatten:true});}
 if(args.cold)await run('Network.clearBrowserCache');
+if(args.compat==='basic')await run('Page.addScriptToEvaluateOnNewDocument',{source:'globalThis.VideoDecoder=undefined;globalThis.OffscreenCanvas=undefined;HTMLCanvasElement.prototype.transferControlToOffscreen=undefined;'});
+if(args.compat==='main')await run('Page.addScriptToEvaluateOnNewDocument',{source:'globalThis.VideoDecoder=undefined;globalThis.Worker=undefined;'});
+if(args.compat==='dom')await run('Page.addScriptToEvaluateOnNewDocument',{source:'globalThis.VideoDecoder=undefined;globalThis.Worker=undefined;globalThis.createImageBitmap=undefined;'});
 await run('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
 const hardware=await call('SystemInfo.getInfo');await fs.writeFile(path.join(out,'hardware.json'),JSON.stringify({browser:version,...hardware},null,2));
-await run('Page.navigate',{url:base});
+await run('Page.navigate',{url:base});await run('Page.bringToFront');
 await new Promise(resolve=>setTimeout(resolve,Number(args.settle||2500)));
 await evaluate(`new Promise(resolve=>{const films=[...document.querySelectorAll('video.entry-film,video.journey-film')];const end=Date.now()+30000;const tick=()=>films.length===2&&(films.every(v=>v.readyState>=2)||document.querySelectorAll('.independent-surface').length===2)?resolve(true):Date.now()>end?resolve(false):setTimeout(tick,100);tick();})`,true);
 const before=await run('Performance.getMetrics');

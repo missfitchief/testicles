@@ -1,6 +1,7 @@
 import { createEntrance } from './entry.js';
 import { createScrollVideo } from './scroll-video.js';
 import { createIndependentPlayer } from './independent-player.js';
+import { createCompatibilityPlayer } from './compatibility-player.js';
 const clamp = value => Math.max(0, Math.min(1, value));
 
 /** The approved connected stage, with one native decoder per shot. */
@@ -39,10 +40,10 @@ export function mountStory(root, reduce, narrow, gsap, ScrollTrigger) {
     media.dataset.ready = 'false'; media.dataset.phase = 'action'; entrance.layer.dataset.ready = 'false';
     const source = video => (narrow.matches && video.dataset.mobileSrc) || (!narrow.matches && video.dataset.desktopSrc) || video.dataset.src;
     const independent = !narrow.matches && typeof VideoDecoder !== 'undefined' && 'transferControlToOffscreen' in HTMLCanvasElement.prototype;
-    if(independent)entrance.measure();
+    if(!narrow.matches)entrance.measure();
     players = {
-      entry: independent ? createIndependentPlayer(entrance.video,{manifest:'/assets/scroll-frames-v2/entry/manifest.json',source:source(entrance.video),count:243,maskGeometry:entrance.maskGeometry,onReady:sync,onFrame:()=>{entrance.layer.dataset.ready='true';updateEntrance();}}) : createScrollVideo(entrance.video, { source: source(entrance.video), fps: narrow.matches ? 24 : 60, onFrame: () => { entrance.layer.dataset.ready = 'true'; updateEntrance(); } }),
-      story: independent ? createIndependentPlayer(film,{manifest:'/assets/scroll-frames-v4/story/manifest.json',source:source(film),count:1405,onReady:sync,onFrame:showStory}) : createScrollVideo(film, { source: source(film), fps: narrow.matches ? 24 : 60, onFrame: showStory }),
+      entry: independent ? createIndependentPlayer(entrance.video,{manifest:'/assets/scroll-frames-v2/entry/manifest.json',compatibilityManifest:'/assets/compatibility-frames-v1/entry/manifest.json',source:source(entrance.video),count:243,maskGeometry:entrance.maskGeometry,onReady:sync,onFrame:()=>{entrance.layer.dataset.ready='true';updateEntrance();}}) : narrow.matches ? createScrollVideo(entrance.video, { source: source(entrance.video), fps:24, onFrame: () => { entrance.layer.dataset.ready = 'true'; updateEntrance(); } }) : createCompatibilityPlayer(entrance.video,{manifest:'/assets/compatibility-frames-v1/entry/manifest.json',source:source(entrance.video),count:243,maskGeometry:entrance.maskGeometry,onReady:sync,onFrame:()=>{entrance.layer.dataset.ready='true';updateEntrance();}}),
+      story: independent ? createIndependentPlayer(film,{manifest:'/assets/scroll-frames-v4/story/manifest.json',compatibilityManifest:'/assets/compatibility-frames-v1/story/manifest.json',source:source(film),count:1405,onReady:sync,onFrame:showStory}) : narrow.matches ? createScrollVideo(film, { source: source(film), fps:24, onFrame:showStory }) : createCompatibilityPlayer(film,{manifest:'/assets/compatibility-frames-v1/story/manifest.json',source:source(film),count:1405,onReady:sync,onFrame:showStory}),
     };
     sync();
   }

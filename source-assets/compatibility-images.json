@@ -1,0 +1,16 @@
+[
+  {
+    "name": "entry",
+    "frames": 243,
+    "bytes": 19579026,
+    "parts": 3,
+    "sourceSha256": "a526e52fffddc6b1b6624c382051817078caf935ad6a2e597e16edf9fbd7df44"
+  },
+  {
+    "name": "story",
+    "frames": 1405,
+    "bytes": 180170806,
+    "parts": 22,
+    "sourceSha256": "08d1903fa7a32fc182620ef3707447803267e481a062baed62e69ecdc4e75c90"
+  }
+]

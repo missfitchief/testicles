@@ -26,6 +26,16 @@ for(const name of ['entry','story']){
  for(let i=0;i<v2.count;i++)assert.equal(fs.statSync(path.resolve('dist','.'+v2.frameBase+String(i).padStart(4,'0')+'.bin')).size,v2.packets[i][2]);
 }
 const media = [];
+for(const [name,count] of [['entry',243],['story',1405]]){
+ const dir=`dist/assets/compatibility-frames-v1/${name}`,m=JSON.parse(fs.readFileSync(`${dir}/manifest.json`,'utf8'));
+ assert.equal(m.width,2560);assert.equal(m.height,1440);assert.equal(m.fps,60);assert.equal(m.count,count);assert.equal(m.mime,'image/jpeg');
+ for(const part of m.parts){assert(part.bytes<=8*1024*1024);assert.equal(fs.statSync('dist'+part.name).size,part.bytes);}
+ for(let i=0;i<count;i++){const[id,offset,size]=m.packets[i];assert(offset>=0&&size>0&&offset+size<=m.parts[id].bytes);assert.equal(fs.statSync(`${dir}/frames/${String(i).padStart(4,'0')}.jpg`).size,size);}
+ const image=JSON.parse(execFileSync('ffprobe',['-v','error','-show_entries','stream=width,height','-of','json',`${dir}/frames/0000.jpg`],{encoding:'utf8'})).streams[0];assert.equal(image.width,2560);assert.equal(image.height,1440);
+ const sourceManifest=JSON.parse(fs.readFileSync(`dist/assets/scroll-frames-${name==='entry'?'v2':'v4'}/${name}/manifest.json`,'utf8')),hash=createHash('sha256');
+ for(const part of sourceManifest.parts)hash.update(fs.readFileSync('dist'+part.name));
+ const receipt=JSON.parse(fs.readFileSync('source-assets/compatibility-images.json','utf8')).find(r=>r.name===name);assert.equal(hash.digest('hex'),receipt.sourceSha256,'Compatibility frames must match the current approved film');
+}
 const repaired=JSON.parse(fs.readFileSync('dist/assets/scroll-frames-v3/story/manifest.json','utf8'));
 assert.equal(repaired.width,2560);assert.equal(repaired.height,1440);assert.equal(repaired.fps,60);assert.equal(repaired.count,1405);
 assert(repaired.parts.reduce((sum,part)=>sum+part.bytes,0)<128*1024*1024,'Repaired stream exceeds the existing cache');

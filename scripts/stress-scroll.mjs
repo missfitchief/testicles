@@ -8,18 +8,24 @@ const out=path.resolve('.project-state/performance-investigation',args.label||'w
 await fs.mkdir(out,{recursive:true});
 const version=await (await fetch(`http://127.0.0.1:${args.port||9339}/json/version`)).json();
 const ws=new WebSocket(version.webSocketDebuggerUrl);await once(ws,'open');
-let serial=0;const pending=new Map();
-ws.addEventListener('message',event=>{const result=JSON.parse(event.data),job=pending.get(result.id);if(job){pending.delete(result.id);result.error?job.reject(new Error(JSON.stringify(result.error))):job.resolve(result.result);}});
+let serial=0;const pending=new Map(),startupErrors=[];
+ws.addEventListener('message',event=>{const result=JSON.parse(event.data),job=pending.get(result.id);if(job){pending.delete(result.id);result.error?job.reject(new Error(JSON.stringify(result.error))):job.resolve(result.result);}else if(result.method==='Log.entryAdded'&&result.params.entry.level==='error')startupErrors.push(result.params.entry.text.slice(0,1000));});
 const call=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++serial;pending.set(id,{resolve,reject});ws.send(JSON.stringify({id,method,params,...(sessionId?{sessionId}:{})}));});
 const {targetId}=await call('Target.createTarget',{url:'about:blank'}),{sessionId}=await call('Target.attachToTarget',{targetId,flatten:true});
 const run=(method,params={})=>call(method,params,sessionId);
 const evaluate=async expression=>{const value=await run('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(value.exceptionDetails)throw Error(JSON.stringify(value.exceptionDetails));return value.result.value;};
-await run('Page.enable');await run('Runtime.enable');
+await run('Page.enable');await run('Runtime.enable');await run('Log.enable');
 if(args.native)await run('Page.addScriptToEvaluateOnNewDocument',{source:'globalThis.VideoDecoder=undefined;'});
+if(args.compat==='basic')await run('Page.addScriptToEvaluateOnNewDocument',{source:'globalThis.VideoDecoder=undefined;globalThis.OffscreenCanvas=undefined;HTMLCanvasElement.prototype.transferControlToOffscreen=undefined;'});
+if(args.compat==='main')await run('Page.addScriptToEvaluateOnNewDocument',{source:'globalThis.VideoDecoder=undefined;globalThis.Worker=undefined;'});
+if(args.compat==='dom')await run('Page.addScriptToEvaluateOnNewDocument',{source:'globalThis.VideoDecoder=undefined;globalThis.Worker=undefined;globalThis.createImageBitmap=undefined;'});
+if(args.compat==='decoder-error')await run('Page.addScriptToEvaluateOnNewDocument',{source:'const OriginalWorker=globalThis.Worker;globalThis.Worker=class extends OriginalWorker{constructor(url,options){if(String(url).includes("independent-worker"))throw new Error("Simulated decoder worker unavailable");super(url,options);}};'});
 await run('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:width<=700});
 if(width<=700)await run('Emulation.setTouchEmulationEnabled',{enabled:true});
 await run('Page.navigate',{url});await run('Page.bringToFront');
 await new Promise(resolve=>setTimeout(resolve,5000));
+const renderer=await evaluate(`({surfaces:[...document.querySelectorAll('.compatibility-surface')].map(s=>s.tagName),videos:[...document.querySelectorAll('video.entry-film,video.journey-film')].map(v=>v.currentSrc)})`);
+if(args.compat&&renderer.surfaces.length!==2){await call('Target.closeTarget',{targetId});ws.close();throw Error('Expected direct-image compatibility surfaces; native fallback was active: '+JSON.stringify({renderer,startupErrors}));}
 await evaluate(`(()=>{
  const frames=[],stalls=[],samples=[],errors=[],tasks=[],raf=[];let alive=true,lastFrame=performance.now(),lastEntryFrame=lastFrame,lastMotion=lastFrame,motionStart=lastFrame,lastY=scrollY,surface='',surfaceStart=lastFrame,lastTick=0;
  const listeners=[];
@@ -56,6 +62,6 @@ for(const [i,position] of [.17,.88,.28,.98,.18,.76,.4].entries()){
 }
 const measurements=await evaluate('__stress.finish()');
 const sorted=measurements.raf.toSorted((a,b)=>a-b);
-const summary={url,width,height,route:args.route||'story',repeat:Number(args.repeat||1),checkpoints,frames:measurements.frames.length,stalledSamples:measurements.stalls.length,maxMovingStall:Math.max(0,...measurements.stalls.map(s=>s.gap)),movingGaps:{over50:measurements.samples.filter(s=>s.surface&&s.moving&&s.gap>50).length,over80:measurements.samples.filter(s=>s.surface&&s.moving&&s.gap>80).length},raf:{p95:sorted[Math.floor(sorted.length*.95)],max:Math.max(0,...sorted)},errors:measurements.errors,longTasks:measurements.tasks};
+const summary={url,width,height,route:args.route||'story',repeat:Number(args.repeat||1),compatibility:args.compat||null,renderer,startupErrors,checkpoints,frames:measurements.frames.length,stalledSamples:measurements.stalls.length,maxMovingStall:Math.max(0,...measurements.stalls.map(s=>s.gap)),movingGaps:{over50:measurements.samples.filter(s=>s.surface&&s.moving&&s.gap>50).length,over80:measurements.samples.filter(s=>s.surface&&s.moving&&s.gap>80).length},raf:{p95:sorted[Math.floor(sorted.length*.95)],max:Math.max(0,...sorted)},errors:measurements.errors,longTasks:measurements.tasks};
 await fs.writeFile(path.join(out,'stress.json'),JSON.stringify({summary,...measurements},null,2));
 console.log(JSON.stringify(summary,null,2));await call('Target.closeTarget',{targetId});ws.close();

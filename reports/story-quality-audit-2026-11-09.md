@@ -40,6 +40,8 @@ No blank checkpoint or moving-frame age above 60ms was recorded in these runs. T
 
 A forced native-video compatibility test also reached all 13 checkpoints, but retained slower seek delivery on this software-rendered host: 327ms maximum moving-frame age. The prior video reproduced a comparable 339ms maximum in a local baseline. This compatibility path is not as smooth as the normal Chrome/Edge worker path; it is a remaining limitation, not a resolved performance result. The fallback's original three-frame keyframe cadence was retained.
 
+Update later on 9 November: this remaining compatibility seek bottleneck was replaced with direct 2K image-frame delivery. See [the compatibility performance report](compatibility-performance-2026-11-09.md) for the separate change and new production measurements.
+
 Raw evidence lives in `.project-state/quality-audit/` and `.project-state/performance-investigation/quality-*`. The pre-release full-resolution frame review, final 29-point visual review, default-browser stress runs, forced fallback comparison and protected-file hashes are retained separately.
 
 ![Sharper desktop story on the live website](sharper-story-live.png)
