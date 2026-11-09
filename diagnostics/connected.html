@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><title>Connected scroll verification</title>
+<style>body{margin:0;background:#e4f3ef;font:14px system-ui;color:#0b322a}button{margin:10px;padding:12px}iframe{display:block;width:100vw;height:calc(100vh - 70px);border:0}pre{margin:10px;font-size:12px}</style>
+<button id="run">Run scroll verification</button><span id="status">Ready</span><iframe src="/"></iframe><pre id="result"></pre>
+<script>
+const frame=document.querySelector('iframe'),status=document.querySelector('#status'),result=document.querySelector('#result');
+document.querySelector('#run').onclick=()=>{
+ const target=frame.contentWindow,doc=target.document,films=[...doc.querySelectorAll('.entry-film,.journey-film')],intervals=[],tasks=[],seekTimes=[];
+ let first=0,last=0,maxMovingFreeze=0,errors=0,activeTime=-1,lastAdvance=0;
+ const started=new WeakMap(),listeners=[];
+ const observer=new target.PerformanceObserver(list=>tasks.push(...list.getEntries().map(e=>e.duration)));observer.observe({entryTypes:['longtask']});
+ for(const film of films){for(const [event,fn] of [['seeking',()=>started.set(film,performance.now())],['seeked',()=>{if(started.has(film))seekTimes.push(performance.now()-started.get(film));}],['error',()=>errors++]]){film.addEventListener(event,fn);listeners.push(()=>film.removeEventListener(event,fn));}}
+ const stops=[0,.25,.65,1,.15,.85,0,1,.4,1];status.textContent='Running';result.textContent='';
+ const tick=now=>{
+  if(!first)first=now;if(last)intervals.push(now-last);last=now;
+  const elapsed=(now-first)/1000,segment=Math.min(stops.length-2,Math.floor(elapsed/2)),p=Math.min(1,(elapsed-segment*2)/2),position=stops[segment]+(stops[segment+1]-stops[segment])*p;
+  target.scrollTo(0,position*(doc.documentElement.scrollHeight-target.innerHeight));
+  const film=position<.14?films[0]:films[1],t=film.currentTime;
+  if(Math.abs(t-activeTime)>.005){activeTime=t;lastAdvance=now;}else if(p>.05&&p<.95)maxMovingFreeze=Math.max(maxMovingFreeze,now-lastAdvance);
+  if(elapsed<18){requestAnimationFrame(tick);return;}
+  observer.disconnect();listeners.forEach(fn=>fn());intervals.sort((a,b)=>a-b);seekTimes.sort((a,b)=>a-b);
+  const report={seconds:elapsed,viewport:[target.innerWidth,target.innerHeight],samples:intervals.length,medianFrameMs:intervals[Math.floor(intervals.length*.5)],p95FrameMs:intervals[Math.floor(intervals.length*.95)],maxFrameMs:Math.max(...intervals),longTasks:tasks.length,maxLongTaskMs:Math.max(0,...tasks),seeks:seekTimes.length,medianSeekMs:seekTimes[Math.floor(seekTimes.length*.5)],p95SeekMs:seekTimes[Math.floor(seekTimes.length*.95)],maxSeekMs:Math.max(...seekTimes),maxMovingFreeze,errors,overflow:doc.documentElement.scrollWidth>target.innerWidth,dimensions:films.map(v=>[v.videoWidth,v.videoHeight]),canvases:doc.querySelectorAll('canvas').length};
+  setTimeout(()=>{report.finalSceneVisible=Number(target.getComputedStyle(doc.querySelector('.story-canvas')).opacity)===1;report.finalStoryTime=films[1].currentTime;report.finalEntryTime=films[0].currentTime;report.idlePlaying=!doc.querySelector('.journey-idle').paused;result.textContent=JSON.stringify(report,null,2);status.textContent='Complete';},1000);
+ };requestAnimationFrame(tick);
+};
+</script>

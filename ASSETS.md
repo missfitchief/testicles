@@ -2,8 +2,8 @@
 
 All artwork and films come from the existing authorized Testicles Higgsfield project, preserved at `C:/Users/akki/Documents/ChatGPT/sajtovi/testicles/source-assets` and its original `ASSETS.md` and credit ledger. No new generation or credit purchase was made. Cumulative project spending remains 398.75 of 400 authorized credits.
 
-The original generated images are 2688 × 1520 and converted to quality-96 WebP without resizing. The hero video is byte-identical to the previously approved 2560 × 1440 file. Story footage uses the existing 2560 × 1440 desktop and 2048 × 2048 phone masters, encoded at CRF 17 and the original 24fps. These masters include enhanced lower-resolution generation; they are not new native-2K renders.
+The opening, posters, entrance and desktop story use the preserved original assets. Desktop story footage is 2560 × 1440 at 60fps. The original hero remains byte-identical at 2560 × 1440. These masters include previously enhanced generation; they are not new native-2K renders.
 
-`scripts/prepare-media.mjs` contains the exact source files, chapter boundaries and encoding settings. The action-to-idle transition starts at the action's final pose; idle loops reverse and return across the original tail. No generated intermediate frames or lower-resolution substitution are introduced.
+The phone story is encoded from `../testicles/public/assets/story-continuous-clean-mobile-2k.mp4` without trimming, resizing or changing its 24fps timing: libx264, CRF 17, preset fast, GOP 2, no B frames, one reference frame, yuv420p and faststart. The full-film SSIM is 0.998148. This removes frame-reordering overhead without changing the original composition. The original final idle loops are retained. `scripts/prepare-media.mjs` belongs to the rejected panel version and is not used by this release.
 
 Fonts: Albert Sans, SIL Open Font License via `@fontsource-variable/albert-sans`. Motion: GSAP and ScrollTrigger. All runtime assets are served with the site.

@@ -1,14 +1,14 @@
 # Testicles
 
-A clean rebuild of the Testicles character website. The original mint palette, Albert Sans, oversized opening and four story beats are preserved.
+A clean playback implementation under the original Testicles website. The approved layout, copy, opening and connected scroll story are restored.
 
 `npm ci` installs dependencies. `npm run dev` serves port 5194. `npm test`, `npm run build` and `npm run check` validate the release.
 
 ## Motion
 
-Normal page scrolling controls small transform/opacity transitions only. Native, muted, inline videos play the character actions at their original 24fps. There is no video scrubbing, variable playback speed, frame pipeline, canvas or decoder worker. Only the active chapter plays; hidden and distant media pause or unload. Each action ends in a matching idle loop. The 2K images remain visible while media loads or if playback fails.
+The original GSAP timeline controls the continuous journey. A native video decoder accepts one seek at a time, coalescing every new scroll input to the latest target instead of building a queue. There are no software frame packs, canvas transfers, reverse tracks or variable playback-rate loops. Only the final scene plays freely as an idle loop. Hidden tabs stop work.
 
-All footage is delivered at 2560 × 1440 on desktop and 2048 × 2048 on portrait phones. The original hero video is preserved byte for byte. Existing Higgsfield artwork remains at its original generated dimensions, generally 2688 × 1520. These videos are the project's existing enhanced sources, not newly generated native 2K footage. No new Higgsfield credits were used.
+Desktop story footage is 2560 × 1440 at 60fps; phone footage is 2048 × 2048 at 24fps. The original hero and desktop story are byte-identical. The phone story uses short two-frame groups without B-frame reordering for quicker seeking; its full-film SSIM against the original is 0.998148. No media is downscaled and no new Higgsfield credits are used. These are the existing enhanced sources, not newly generated native 2K footage.
 
 ## Hosting
 

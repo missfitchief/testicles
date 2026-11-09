@@ -1,117 +1,45 @@
-import "./style.css";
-import { gsap } from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { mountMedia } from "./media.js";
-
+import './style.css';
+import './story.css';
+import {gsap} from 'gsap';
+import {ScrollTrigger} from 'gsap/ScrollTrigger';
+import {mountStory} from './story.js';
 gsap.registerPlugin(ScrollTrigger);
-const chapters = [...document.querySelectorAll("[data-scene]")];
-const phone = matchMedia("(max-width:700px)");
-const media = mountMedia(chapters, { phone });
-const active = new Set();
-function choose() {
-  const center = innerHeight / 2;
-  let nearest = 0,
-    distance = Infinity;
-  for (const index of active) {
-    const box = chapters[index].getBoundingClientRect();
-    const gap =
-      box.top > center
-        ? box.top - center
-        : box.bottom < center
-          ? center - box.bottom
-          : 0;
-    if (gap < distance) {
-      distance = gap;
-      nearest = index;
-    }
-  }
-  media.select(nearest);
-}
-const observer = new IntersectionObserver(
-  (entries) => {
-    for (const entry of entries) {
-      const index = chapters.indexOf(entry.target);
-      entry.isIntersecting ? active.add(index) : active.delete(index);
-    }
-    if (active.size) choose();
-  },
-  { rootMargin: "-40% 0px -40% 0px", threshold: 0 },
-);
-chapters.forEach((chapter) => observer.observe(chapter));
 
-const motion = gsap.matchMedia();
-motion.add("(prefers-reduced-motion: no-preference)", () => {
-  gsap.from(".hero h1", { opacity: 0, duration: 0.85, ease: "power3.out" });
-  gsap.from(".hero-intro", {
-    opacity: 0,
-    y: 14,
-    duration: 0.7,
-    delay: 0.15,
-    ease: "power3.out",
-  });
-  for (const chapter of chapters.slice(1)) {
-    gsap.fromTo(
-      chapter.querySelector(".scene-visual"),
-      { yPercent: 2, scale: 1.025 },
-      {
-        yPercent: -2,
-        scale: 1,
-        ease: "none",
-        scrollTrigger: {
-          trigger: chapter,
-          start: "top bottom",
-          end: "bottom top",
-          scrub: true,
-        },
-      },
-    );
-    gsap.from(chapter.querySelector(".scene-copy"), {
-      opacity: 0,
-      y: 24,
-      duration: 0.7,
-      ease: "power3.out",
-      scrollTrigger: {
-        trigger: chapter,
-        start: "top 60%",
-        toggleActions: "play none none reverse",
-      },
-    });
-  }
+const CONTRACT=document.querySelector('[data-contract]').dataset.contract;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)');
+const narrow=matchMedia('(max-width: 700px)');
+let toastTimer,toast=document.querySelector('#toast');
+const notify=(message)=>{toast.textContent=message;toast.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('visible'),2600);};
+
+for(const button of document.querySelectorAll('[data-copy-contract]')) button.addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(CONTRACT);notify('Contract copied. The right pair.');}
+  catch{const el=document.createElement('textarea');el.value=CONTRACT;el.style.cssText='position:fixed;top:-1000px';document.body.append(el);el.select();const ok=document.execCommand('copy');el.remove();notify(ok?'Contract copied. The right pair.':'Copy failed. Please try again.');}
 });
-let toastTimer;
-document
-  .querySelector("[data-copy-contract]")
-  .addEventListener("click", async () => {
-    const contract = "0x236feecd909ff562e775318c77781f4946c33b3b";
-    let success = false;
-    try {
-      await navigator.clipboard.writeText(contract);
-      success = true;
-    } catch {
-      const input = document.createElement("textarea");
-      input.value = contract;
-      input.style.cssText = "position:fixed;left:-9999px";
-      document.body.append(input);
-      input.select();
-      success = document.execCommand("copy");
-      input.remove();
-    }
-    const toast = document.querySelector(".toast");
-    toast.textContent = success
-      ? "Contract copied. The right pair."
-      : "Copy failed. Please try again.";
-    toast.classList.add("is-visible");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2400);
+
+const stages=[...document.querySelectorAll('[data-video-stage]')];
+const active=new Set();
+function speed(video){video.playbackRate=reduce.matches ? .55 : 1;}
+function play(stage){if(stage.closest('.hero')?.dataset.departed==='true')return;const video=stage.querySelector('video');video.muted=true;video.defaultMuted=true;video.playsInline=true;if(!video.src){video.src=(narrow.matches&&video.dataset.mobileSrc)?video.dataset.mobileSrc:video.dataset.src;video.load();}speed(video);video.play().then(()=>{if(!active.has(stage)||document.hidden||stage.closest('.hero')?.dataset.departed==='true')video.pause();}).catch(()=>{});}
+const io=new IntersectionObserver(entries=>{for(const e of entries){const v=e.target.querySelector('video');if(e.isIntersecting){active.add(e.target);if(!document.hidden)play(e.target);}else{active.delete(e.target);v.pause();}}},{rootMargin:'100px',threshold:.02});
+for(const stage of stages){const video=stage.querySelector('video');video.addEventListener('playing',()=>stage.classList.add('video-ready'));video.addEventListener('error',()=>stage.classList.remove('video-ready'));io.observe(stage);}
+document.addEventListener('visibilitychange',()=>{for(const stage of active)document.hidden?stage.querySelector('video').pause():play(stage);});
+reduce.addEventListener('change',()=>{for(const stage of stages)speed(stage.querySelector('video'));});
+narrow.addEventListener('change',()=>{for(const stage of stages){const video=stage.querySelector('video');video.pause();video.removeAttribute('src');stage.classList.remove('video-ready');if(active.has(stage)&&!document.hidden)play(stage);}});
+
+const motionMedia=gsap.matchMedia();
+document.fonts.ready.then(()=>{
+  motionMedia.add('(prefers-reduced-motion: no-preference)',()=>{
+    gsap.from('.hero h1',{opacity:0,duration:1.1,ease:'power3.out'});
+    gsap.from('.hero-intro',{y:15,opacity:0,duration:.7,delay:.18,ease:'power3.out'});
   });
-document.fonts.ready.then(() => ScrollTrigger.refresh());
-window.addEventListener("pagehide", (event) => {
-  media.pause();
-  if (!event.persisted) {
-    media.dispose();
-    observer.disconnect();
-    motion.revert();
-    clearTimeout(toastTimer);
-  }
+  motionMedia.add('(min-width: 701px) and (prefers-reduced-motion: no-preference)',()=>{
+    // The connected departure owns this camera movement; do not stack the old parallax over it.
+    if(document.querySelector('.connected-experience.is-connected'))return;
+    gsap.to('.hero h1',{y:-70,ease:'none',scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:1}});
+    gsap.to('.hero-art',{y:40,scale:1.035,ease:'none',scrollTrigger:{trigger:'.hero',start:'top top',end:'bottom top',scrub:1}});
+  });
 });
-window.addEventListener("pageshow", () => media.resume());
+
+const stories=[...document.querySelectorAll('.story')].map(root=>mountStory(root,reduce,narrow,gsap,ScrollTrigger));
+window.addEventListener('pagehide',event=>{if(event.persisted){for(const stage of active)stage.querySelector('video').pause();return;}for(const story of stories)story.dispose();motionMedia.revert();io.disconnect();clearTimeout(toastTimer);});
+window.addEventListener('pageshow',event=>{if(event.persisted){for(const stage of active)if(!document.hidden)play(stage);}});

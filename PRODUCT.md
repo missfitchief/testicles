@@ -1,9 +1,7 @@
-# Testicles rebuild
+# Testicles: preserve the approved website
 
-Preserve the approved mint/evergreen identity, Albert Sans, oversized opening, HYPE coin, mascot anatomy, and the slide → friends → man's trousers → woman story. Official X and contract remain unchanged. No footer, fake utility or new sections.
+The user explicitly rejected the separated-panel rebuild. Restore the exact original composition, copy, first page, connected camera transition and slide → group → trousers → girl sequence. No visual redesign is authorized. The source CSS, entrance geometry and main controls are copied verbatim from the preserved original project.
 
-Build a new standalone implementation, not another patch to the old player. Original generated 2K artwork stays at its source resolution. All delivered films are 2K at their original 24fps, with normal browser playback and long-GOP encoding. Scroll controls only transform/opacity transitions. It never seeks, decodes individual frames, changes video speed, or drives a movie clock. No workers, frame packs, video queues, canvas drawing, custom smooth-scroll interception, or competing fallback engines.
+Only the delivery implementation changes. Use the browser's native video decoder and a serialized, latest-target scroll playhead. Do not bring back software frame decoding, frame-pack downloads, transferred canvases, fallback engine chains or parallel reverse movies. Keep native page scrolling, original GSAP timing, hidden-tab pausing and working links.
 
-At most one chapter's character film plays. Hidden/offscreen media pauses; navigation and copy remain available during loading. A composed 2K image covers loading and failures. The website uses ordinary native scrolling on desktop and phone. Reduced-motion visitors retain automatic character animation with gentler interface transitions.
-
-Reuse existing paid Higgsfield assets. This is the same project's 400-credit budget; 398.75 credits have already been spent and no new generation or purchase is needed.
+Reuse the original desktop story without recompression at 2560×1440 and 60fps, and the original opening at 2560×1440. Phone story stays 2048×2048 at 24fps with two-frame groups and no B-frame reordering; its full-film SSIM against the original is 0.998148. The existing source includes previously enhanced/generated footage; this update does not claim new native-2K generation. No generation credits spent.
