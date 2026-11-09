@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env*
+.project-state/
+.git/
+.vercel/
+*.log
+diagnostics/

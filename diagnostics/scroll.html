@@ -1,0 +1,23 @@
+<!doctype html><meta charset="utf-8"><title>Rebuild scroll check</title>
+<style>body{margin:0;background:#e4f3ef;font:14px system-ui;color:#0b322a}button{margin:10px;padding:12px}iframe{display:block;width:100vw;height:calc(100vh - 80px);border:0}pre{margin:10px}</style>
+<button id="run">Test fast scrolling both ways</button><span id="status">Ready</span><iframe src="/"></iframe><pre id="result"></pre>
+<script>
+const frame=document.querySelector('iframe'),status=document.querySelector('#status'),result=document.querySelector('#result');
+document.querySelector('#run').onclick=()=>{
+ const target=frame.contentWindow,doc=target.document,intervals=[],tasks=[];let first=0,last=0,maxPlaying=0;
+ const observer=new target.PerformanceObserver(list=>tasks.push(...list.getEntries().map(e=>e.duration)));observer.observe({entryTypes:['longtask']});
+ const stops=[0,.8,.2,1,.35,.95,0];status.textContent='Running';result.textContent='';
+ const tick=now=>{
+  if(!first)first=now;if(last)intervals.push(now-last);last=now;
+  const elapsed=(now-first)/1000,segment=Math.min(5,Math.floor(elapsed/2)),progress=Math.min(1,(elapsed-segment*2)/2);
+  const position=stops[segment]+(stops[segment+1]-stops[segment])*progress;
+  target.scrollTo(0,position*(doc.documentElement.scrollHeight-target.innerHeight));
+  maxPlaying=Math.max(maxPlaying,[...doc.querySelectorAll('video')].filter(v=>!v.paused).length);
+  if(elapsed<12){requestAnimationFrame(tick);return;}
+  observer.disconnect();intervals.sort((a,b)=>a-b);
+  const report={seconds:elapsed,samples:intervals.length,medianFrameMs:intervals[Math.floor(intervals.length*.5)],p95FrameMs:intervals[Math.floor(intervals.length*.95)],maxFrameMs:Math.max(...intervals),longTasks:tasks.length,maxLongTaskMs:Math.max(0,...tasks),maxPlaying,overflow:doc.documentElement.scrollWidth>target.innerWidth};
+  result.textContent=JSON.stringify(report,null,2);status.textContent='Complete';
+ };
+ requestAnimationFrame(tick);
+};
+</script>
