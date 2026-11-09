@@ -1,5 +1,6 @@
 import { createEntrance } from './entry.js';
 import { createScrollVideo } from './scroll-video.js';
+import { createIndependentPlayer } from './independent-player.js';
 const clamp = value => Math.max(0, Math.min(1, value));
 
 /** The approved connected stage, with one native decoder per shot. */
@@ -37,9 +38,10 @@ export function mountStory(root, reduce, narrow, gsap, ScrollTrigger) {
     idleRevision++; idle.pause(); idle.removeAttribute('src'); idle.load(); idleReady = false;
     media.dataset.ready = 'false'; media.dataset.phase = 'action'; entrance.layer.dataset.ready = 'false';
     const source = video => (narrow.matches && video.dataset.mobileSrc) || (!narrow.matches && video.dataset.desktopSrc) || video.dataset.src;
+    const independent = !narrow.matches && typeof VideoDecoder !== 'undefined' && 'transferControlToOffscreen' in HTMLCanvasElement.prototype;
     players = {
-      entry: createScrollVideo(entrance.video, { source: source(entrance.video), fps: narrow.matches ? 24 : 60, onFrame: () => { entrance.layer.dataset.ready = 'true'; updateEntrance(); } }),
-      story: createScrollVideo(film, { source: source(film), fps: narrow.matches ? 24 : 60, onFrame: showStory }),
+      entry: independent ? createIndependentPlayer(entrance.video,{manifest:'/assets/scroll-frames-v2/entry/manifest.json',source:source(entrance.video),count:243,onReady:sync,onFrame:()=>{entrance.layer.dataset.ready='true';updateEntrance();}}) : createScrollVideo(entrance.video, { source: source(entrance.video), fps: narrow.matches ? 24 : 60, onFrame: () => { entrance.layer.dataset.ready = 'true'; updateEntrance(); } }),
+      story: independent ? createIndependentPlayer(film,{manifest:'/assets/scroll-frames-v2/story/manifest.json',source:source(film),count:1405,onReady:sync,onFrame:showStory}) : createScrollVideo(film, { source: source(film), fps: narrow.matches ? 24 : 60, onFrame: showStory }),
     };
     sync();
   }

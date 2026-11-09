@@ -1,0 +1,12 @@
+import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+const input=process.argv[2],out=process.argv[3];fs.mkdirSync(out,{recursive:true});const all=path.join(out,'stream.h264');
+execFileSync('ffmpeg',['-hide_banner','-loglevel','error','-y','-i',input,'-an','-c:v','copy','-bsf:v','h264_mp4toannexb','-f','h264',all]);
+const packets=JSON.parse(execFileSync('ffprobe',['-v','error','-show_packets','-show_entries','packet=pos,size,flags','-of','json',all],{encoding:'utf8',maxBuffer:4e6})).packets;
+if(packets.some(p=>!p.flags.includes('K')))throw new Error('Only independent frames are supported');
+const data=fs.readFileSync(all),size=12*1024*1024,parts=[];let current=[],bytes=0,start=0;
+fs.mkdirSync(path.join(out,'frames'),{recursive:true});
+packets.forEach((p,i)=>fs.writeFileSync(path.join(out,'frames',String(i).padStart(4,'0')+'.bin'),data.subarray(+p.pos,+p.pos+(+p.size))));
+const flush=()=>{if(!current.length)return;const name=`part-${parts.length}.bin`;fs.writeFileSync(path.join(out,name),Buffer.concat(current));parts.push({name,start,bytes});start+=current.length;current=[];bytes=0;};
+const index=[];for(const p of packets){const n=+p.size;if(bytes+n>size)flush();index.push([parts.length,bytes,n]);current.push(data.subarray(+p.pos,+p.pos+n));bytes+=n;}flush();
+fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify({width:2560,height:1440,fps:60,count:index.length,codec:'avc1.640033',frameBase:'frames/',parts,packets:index}));
+console.log(JSON.stringify({frames:index.length,bytes:data.length,parts:parts.length}));

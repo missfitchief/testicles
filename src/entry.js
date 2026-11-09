@@ -70,6 +70,7 @@ export function createEntrance(root,narrow,storyDuration,reduce){
     crop.style.transform=`translate3d(${box.x}px,${box.y}px,0) scale(${box.w/base.w},${box.h/base.h})`;
     const transform=`translate3d(${(frame.x-box.x)*base.w/box.w}px,${(frame.y-box.y)*base.h/box.h}px,0) scale(${frame.w*base.w/(2560*box.w)},${frame.h*base.h/(1440*box.h)})`;
     video.style.transform=transform;poster.style.transform=transform;
+    if(video.nextElementSibling?.classList.contains('independent-surface'))video.nextElementSibling.style.transform=transform;
     const frameCanvas=root.querySelector('.entry-frames');
     if(frameCanvas&&root.dataset.renderer==='frames')frameCanvas.style.transform=transform;
     const enter=smooth(p/.12),leave=!narrow.matches&&root.dataset.renderer==='frames'?(raw>=1?1:0):smooth((raw-1)/.022);

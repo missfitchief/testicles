@@ -1,0 +1,53 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { once } from 'node:events';
+const args=Object.fromEntries(process.argv.slice(2).map(v=>{const [k,...rest]=v.replace(/^--/,'').split('=');return[k,rest.join('=')||true];}));
+const base=String(args.url||'https://testicles-xi.vercel.app/');
+const label=String(args.label||'baseline');
+const width=Number(args.width||1280),height=Number(args.height||900),seconds=Number(args.seconds||18);
+const route=args.route==='entrance'?[0,.18,0,.18,0,.18,0,.18,0]:[.2,.85,.25,.95,.4,.9,.15,.98,.3];
+const out=path.resolve('.project-state/performance-investigation',label);await fs.mkdir(out,{recursive:true});
+const version=await(await fetch('http://127.0.0.1:9339/json/version')).json();
+const socket=new WebSocket(version.webSocketDebuggerUrl);await once(socket,'open');
+let serial=0;const pending=new Map(),waiters=new Map();const events=[];
+socket.addEventListener('message',event=>{const m=JSON.parse(event.data);if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p?.reject(new Error(JSON.stringify(m.error))):p?.resolve(m.result);}else{events.push(m);if(args.network&&m.method==='Target.attachedToTarget'&&m.params.targetInfo.type==='worker'){call('Network.enable',{},m.params.sessionId).finally(()=>call('Runtime.runIfWaitingForDebugger',{},m.params.sessionId));}for(const f of waiters.get(m.method)||[])f(m);}});
+const call=(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++serial;pending.set(id,{resolve,reject});socket.send(JSON.stringify({id,method,params,...(sessionId?{sessionId}:{})}));});
+const eventOnce=method=>new Promise(resolve=>{const fn=m=>{waiters.set(method,(waiters.get(method)||[]).filter(f=>f!==fn));resolve(m);};waiters.set(method,[...(waiters.get(method)||[]),fn]);});
+const {targetId}=await call('Target.createTarget',{url:'about:blank'});const {sessionId}=await call('Target.attachToTarget',{targetId,flatten:true});
+const run=(method,params={})=>call(method,params,sessionId);
+const evaluate=async(expression,awaitPromise=false)=>{const r=await run('Runtime.evaluate',{expression,awaitPromise,returnByValue:true});if(r.exceptionDetails)throw new Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
+await Promise.all(['Page.enable','Runtime.enable','Performance.enable','Media.enable'].map(m=>run(m)));
+if(args.network){await run('Network.enable');await run('Target.setAutoAttach',{autoAttach:true,waitForDebuggerOnStart:true,flatten:true});}
+if(args.cold)await run('Network.clearBrowserCache');
+await run('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+const hardware=await call('SystemInfo.getInfo');await fs.writeFile(path.join(out,'hardware.json'),JSON.stringify({browser:version,...hardware},null,2));
+await run('Page.navigate',{url:base});
+await new Promise(resolve=>setTimeout(resolve,2500));
+await evaluate(`new Promise(resolve=>{const films=[...document.querySelectorAll('video.entry-film,video.journey-film')];const end=Date.now()+30000;const tick=()=>films.length===2&&(films.every(v=>v.readyState>=2)||document.querySelectorAll('.independent-surface').length===2)?resolve(true):Date.now()>end?resolve(false):setTimeout(tick,100);tick();})`,true);
+const before=await run('Performance.getMetrics');
+const domBefore=await run('Memory.getDOMCounters');
+await run('Profiler.enable');await run('Profiler.start');
+await call('Tracing.start',{categories:'toplevel,devtools.timeline,disabled-by-default-devtools.timeline,disabled-by-default-devtools.timeline.frame,blink.user_timing,cc,gpu,media,v8',options:'record-as-much-as-possible',transferMode:'ReturnAsStream'});
+const result=await evaluate(`(async()=>{
+ const films=[...document.querySelectorAll('video.entry-film,video.journey-film')],story=document.querySelector('#story'),observations=films.map(()=>({seekTimes:[],presentations:[]})),raf=[],tasks=[],errors=[];
+ let start=0,last=0,alive=true;const seekStarts=new WeakMap();
+ const listeners=[];for(let i=0;i<films.length;i++){const v=films[i];const on=(event,fn)=>{v.addEventListener(event,fn);listeners.push(()=>v.removeEventListener(event,fn));};on('seeking',()=>seekStarts.set(v,performance.now()));on('seeked',()=>observations[i].seekTimes.push(performance.now()-(seekStarts.get(v)||performance.now())));on('error',()=>errors.push(v.error?.message));const observe=(_,m)=>{if(!alive)return;observations[i].presentations.push({at:performance.now(),media:m.mediaTime,presented:m.presentedFrames,processing:m.processingDuration});v.requestVideoFrameCallback(observe);};v.requestVideoFrameCallback(observe);}
+ for(const [i,selector] of ['.entry-film.independent-surface','.journey-film.independent-surface'].entries()){const rendered=document.querySelector(selector);if(rendered){const listener=e=>observations[i].presentations.push({at:performance.now(),media:e.detail.index/60,processing:0});rendered.addEventListener('framepresented',listener);listeners.push(()=>rendered.removeEventListener('framepresented',listener));}}
+ const po=new PerformanceObserver(list=>tasks.push(...list.getEntries().map(e=>({start:e.startTime,duration:e.duration}))));po.observe({entryTypes:['longtask']});
+ const snapshot=()=>({scrollY,viewport:[innerWidth,innerHeight],dom:document.querySelectorAll('*').length,images:[...document.images].filter(i=>i.complete&&i.naturalWidth===0).length,films:films.map(v=>{const q=v.getVideoPlaybackQuality();return {src:v.currentSrc,width:v.videoWidth,height:v.videoHeight,time:v.currentTime,quality:{total:q.totalVideoFrames,dropped:q.droppedVideoFrames,corrupted:q.corruptedVideoFrames}}}),canvas:document.querySelectorAll('canvas').length,react:!!window.__REACT_DEVTOOLS_GLOBAL_HOOK__,sceneVisible:getComputedStyle(document.querySelector('.story-canvas')).opacity});
+ const initial=snapshot();const stops=${JSON.stringify(route)};
+ await new Promise(resolve=>{const tick=now=>{if(!start)start=now;if(last)raf.push(now-last);last=now;const elapsed=(now-start)/1000;const segment=Math.min(stops.length-2,Math.floor(elapsed/${seconds/(8)})),p=Math.min(1,(elapsed-segment*${seconds/8})/${seconds/8});scrollTo(0,(stops[segment]+(stops[segment+1]-stops[segment])*p)*(document.documentElement.scrollHeight-innerHeight));if(elapsed<${seconds})requestAnimationFrame(tick);else resolve();};requestAnimationFrame(tick);});
+ await new Promise(resolve=>setTimeout(resolve,300));alive=false;po.disconnect();listeners.forEach(fn=>fn());
+ return {initial,final:snapshot(),raf,tasks,observations,errors,resources:performance.getEntriesByType('resource').filter(r=>['.mp4','.bin','manifest.json'].some(part=>r.name.includes(part))).map(r=>({name:r.name,duration:r.duration,transfer:r.transferSize,decoded:r.decodedBodySize}))};
+})()`,true);
+const profile=await run('Profiler.stop');await fs.writeFile(path.join(out,'cpu.cpuprofile'),JSON.stringify(profile.profile));
+const done=eventOnce('Tracing.tracingComplete');await call('Tracing.end');const traceEvent=await done;
+let trace='';for(;;){const chunk=await call('IO.read',{handle:traceEvent.params.stream});trace+=chunk.base64Encoded?Buffer.from(chunk.data,'base64').toString():chunk.data;if(chunk.eof)break;}await call('IO.close',{handle:traceEvent.params.stream});await fs.writeFile(path.join(out,'trace.json'),trace);
+const after=await run('Performance.getMetrics'),domAfter=await run('Memory.getDOMCounters');
+const metrics=Object.fromEntries(after.metrics.map(m=>[m.name,m.value-(before.metrics.find(b=>b.name===m.name)?.value||0)]));
+const quantile=(list,q)=>{const a=list.toSorted((a,b)=>a-b);return a.length?a[Math.min(a.length-1,Math.floor(a.length*q))]:null;};
+const summarize=list=>({count:list.length,p50:quantile(list,.5),p95:quantile(list,.95),max:Math.max(0,...list)});
+const summary={url:base,width,height,seconds,route:args.route||'story',raf:summarize(result.raf),mainThreadLongTasks:result.tasks,media:result.observations.map(o=>({seeks:summarize(o.seekTimes),presented:o.presentations.length,presentationIntervals:summarize(o.presentations.slice(1).map((p,i)=>p.at-o.presentations[i].at)),processing:summarize(o.presentations.map(p=>p.processing*1000))})),metrics,domBefore,domAfter,final:result.final};
+await fs.writeFile(path.join(out,'measurements.json'),JSON.stringify({summary,...result},null,2));await fs.writeFile(path.join(out,'media-events.json'),JSON.stringify(events.filter(e=>e.method?.startsWith('Media.')),null,2));
+if(args.network)await fs.writeFile(path.join(out,'network-events.json'),JSON.stringify(events.filter(e=>e.method?.startsWith('Network.')),null,2));
+console.log(JSON.stringify({out,summary},null,2));await call('Target.closeTarget',{targetId});socket.close();
