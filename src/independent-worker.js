@@ -4,6 +4,7 @@ let config, base, context, decoder, active=false, desired=0, shown=-1;
 let busy=false, failed=false, timer=0, nextFrameAt=-Infinity, disposed=false;
 let sequence=0, direction=1, hasBeenActive=false, eager=true, pageVisible=true;
 let drain=0, watchdog=0, flushing=false;
+let maskGeometry=null;
 const pending=new Set();
 const parts=new Map(), packetCache=new Map(), requests=new Set(), packetWaiters=new Set();
 const MEMORY_LIMIT=128*1024*1024, PACKET_LIMIT=48;
@@ -62,6 +63,17 @@ function watchDecoder(){
  clearTimeout(watchdog);watchdog=0;
  if(pending.size)watchdog=setTimeout(()=>postError(new Error('Frame decoder timed out')),750);
 }
+function drawFrame(frame,index){
+ if(!maskGeometry){context.drawImage(frame,0,0,config.width,config.height);return;}
+ const p=index/(config.count-1),ease=p*p*(3-2*p),mix=(a,b)=>a+(b-a)*ease;
+ const boxY=mix(maskGeometry.startBox.y,maskGeometry.endBox.y),boxH=mix(maskGeometry.startBox.h,maskGeometry.endBox.h);
+ const frameY=mix(maskGeometry.startFrame.y,maskGeometry.endFrame.y),frameH=mix(maskGeometry.startFrame.h,maskGeometry.endFrame.h);
+ const top=(boxY-frameY)*config.height/frameH,height=boxH*config.height/frameH;
+ context.globalCompositeOperation='copy';context.drawImage(frame,0,0,config.width,config.height);
+ const gradient=context.createLinearGradient(0,top,0,top+height);
+ gradient.addColorStop(0,'rgba(0,0,0,0)');gradient.addColorStop(.12,'rgba(0,0,0,1)');gradient.addColorStop(.83,'rgba(0,0,0,1)');gradient.addColorStop(1,'rgba(0,0,0,0)');
+ context.globalCompositeOperation='destination-in';context.fillStyle=gradient;context.fillRect(0,0,config.width,config.height);context.globalCompositeOperation='source-over';
+}
 function warm(){
  if(!config||failed||disposed||!pageVisible)return;const id=config.packets[desired][0];
  // A fast reversal must not queue its critical frame behind unrelated bulk data.
@@ -90,17 +102,18 @@ async function pump(){
 }
 self.onmessage=async({data})=>{
  if(data.type==='init')try{
-  eager=data.eager!==false;pageVisible=!data.hidden;
+  eager=data.eager!==false;pageVisible=!data.hidden;maskGeometry=data.maskGeometry||maskGeometry;
   const response=await fetch(data.manifest,{cache:'force-cache'});if(!response.ok)throw new Error('Frame manifest unavailable');config=await response.json();base=new URL('.',data.manifest);
   if(config.width!==2560||config.height!==1440||config.fps!==60||config.packets.length!==config.count)throw new Error('Unexpected frame format');
-  context=data.canvas.getContext('2d',{alpha:false,desynchronized:true});if(!context)throw new Error('Frame surface unavailable');
+  context=data.canvas.getContext('2d',{alpha:!!maskGeometry,desynchronized:true});if(!context)throw new Error('Frame surface unavailable');
   const options={codec:config.codec,codedWidth:config.width,codedHeight:config.height,optimizeForLatency:true,hardwareAcceleration:'no-preference'};
   if(!(await VideoDecoder.isConfigSupported(options)).supported)throw new Error('Frame decoder unsupported');
-  decoder=new VideoDecoder({output(frame){const index=Math.round(frame.timestamp*config.fps/1e6);try{if((active||shown<0)&&!disposed&&!failed){context.drawImage(frame,0,0,config.width,config.height);shown=index;postMessage({type:'frame',index:shown,at:performance.timeOrigin+performance.now()});}}catch(error){postError(error);}finally{frame.close();pending.delete(index);watchDecoder();pump();}},error:postError});decoder.configure(options);
+  decoder=new VideoDecoder({output(frame){const index=Math.round(frame.timestamp*config.fps/1e6);try{if((active||shown<0)&&!disposed&&!failed){drawFrame(frame,index);shown=index;postMessage({type:'frame',index:shown,masked:!!maskGeometry,at:performance.timeOrigin+performance.now()});}}catch(error){postError(error);}finally{frame.close();pending.delete(index);watchDecoder();pump();}},error:postError});decoder.configure(options);
   postMessage({type:'ready',fps:config.fps,count:config.count});warm();pump();
  }catch(error){postError(error);}
  else if(data.type==='time'){if(data.index!==desired)direction=Math.sign(data.index-desired)||direction;desired=data.index;wakePacketWaiters();warm();pump();}
  else if(data.type==='active'){active=data.value;if(active){hasBeenActive=true;warm();pump();}else{clearTimeout(timer);timer=0;}}
  else if(data.type==='visibility'){pageVisible=!data.hidden;if(pageVisible)warm();}
+ else if(data.type==='maskGeometry'){maskGeometry=data.value;shown=-1;pump();}
  else if(data.type==='dispose'){disposed=true;active=false;clearTimeout(timer);clearTimeout(drain);clearTimeout(watchdog);for(const c of requests)c.abort();decoder?.close();parts.clear();packetCache.clear();}
 };

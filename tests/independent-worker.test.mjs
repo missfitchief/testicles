@@ -6,9 +6,9 @@ import vm from 'node:vm';
 const source=fs.readFileSync(new URL('../src/independent-worker.js',import.meta.url),'utf8');
 const settle=async()=>{for(let i=0;i<18;i++)await Promise.resolve();};
 
-async function fixture({partial=false,throwDraw=false}={}){
+async function fixture({partial=false,throwDraw=false,maskGeometry}={}){
  let now=0,id=0,decoder,urgentAborted=false;
- const timers=new Map(),messages=[],drawn=[],chunks=[],closed=[];
+ const timers=new Map(),messages=[],drawn=[],chunks=[],closed=[],gradients=[],fills=[];let canvasOptions;
  const config={width:2560,height:1440,fps:60,count:200,codec:'avc1.640033',frameBase:'frames/',parts:[{name:'part.bin',bytes:200}],packets:Array.from({length:200},(_,i)=>[0,i,1])};
  const never=new Promise(()=>{});
  const fetch=async(url,options={})=>{
@@ -40,9 +40,10 @@ async function fixture({partial=false,throwDraw=false}={}){
  vm.runInNewContext(source,context);
  const send=data=>context.self.onmessage({data});
  const advance=async(ms)=>{now+=ms;for(let pass=0;pass<10;pass++){const due=[...timers].filter(([,task])=>task.at<=now);if(!due.length)break;for(const [timer,task] of due){timers.delete(timer);task.fn();}await settle();}};
- await send({type:'init',manifest:'https://example.test/manifest.json',canvas:{getContext:()=>({drawImage:frame=>{if(throwDraw)throw Error('surface lost');drawn.push(Math.round(frame.timestamp*60/1e6));}})}});
+ const drawing={drawImage:frame=>{if(throwDraw)throw Error('surface lost');drawn.push(Math.round(frame.timestamp*60/1e6));},createLinearGradient:(...points)=>{const gradient={points,stops:[],addColorStop(at,color){this.stops.push([at,color]);}};gradients.push(gradient);return gradient;},fillRect:(...rect)=>fills.push({rect,operation:drawing.globalCompositeOperation})};
+ await send({type:'init',manifest:'https://example.test/manifest.json',maskGeometry,canvas:{getContext:(type,options)=>{canvasOptions=options;return drawing;}}});
  await settle();
- return {send,advance,decoder,messages,drawn,chunks,closed,get urgentAborted(){return urgentAborted;},dispose:()=>send({type:'dispose'})};
+ return {send,advance,decoder,messages,drawn,chunks,closed,gradients,fills,get canvasOptions(){return canvasOptions;},get urgentAborted(){return urgentAborted;},dispose:()=>send({type:'dispose'})};
 }
 
 test('bounds decode work to two frames and follows the latest reversal',async()=>{
@@ -114,4 +115,21 @@ test('a stalled urgent download also has a deadline',async()=>{
   f.send({type:'time',index:150});await settle();await f.advance(2501);
   assert.equal(f.urgentAborted,true);assert.equal(f.messages.filter(m=>m.type==='error').length,1);
  }finally{f.dispose();}
+});
+
+test('entry mask follows the same crop geometry without reducing frame dimensions',async()=>{
+ const geometry={startBox:{y:100,h:600},startFrame:{y:-200,h:1200},endBox:{y:0,h:1000},endFrame:{y:0,h:1000}};
+ const f=await fixture({maskGeometry:geometry});try{
+  assert.equal(f.canvasOptions.alpha,true);f.decoder.deliver(0);
+  assert.deepEqual(f.gradients[0].points,[0,360,0,1080]);
+  assert.deepEqual(f.gradients[0].stops,[[0,'rgba(0,0,0,0)'],[.12,'rgba(0,0,0,1)'],[.83,'rgba(0,0,0,1)'],[1,'rgba(0,0,0,0)']]);
+  assert.deepEqual(f.fills,[{rect:[0,0,2560,1440],operation:'destination-in'}]);
+  assert.equal(f.messages.find(m=>m.type==='frame').masked,true);
+  f.send({type:'active',value:true});f.send({type:'time',index:199});await f.advance(17);f.decoder.deliver(199);
+  assert.deepEqual(f.gradients.at(-1).points,[0,0,0,1440]);assert.deepEqual(f.closed,[0,199]);
+ }finally{f.dispose();}
+});
+
+test('ordinary story frames remain opaque and do not run the entry mask pass',async()=>{
+ const f=await fixture();try{f.decoder.deliver(0);assert.equal(f.canvasOptions.alpha,false);assert.equal(f.gradients.length,0);assert.equal(f.fills.length,0);}finally{f.dispose();}
 });

@@ -26,8 +26,10 @@ await new Promise(resolve=>setTimeout(resolve,Number(args.settle||2500)));
 await evaluate(`new Promise(resolve=>{const films=[...document.querySelectorAll('video.entry-film,video.journey-film')];const end=Date.now()+30000;const tick=()=>films.length===2&&(films.every(v=>v.readyState>=2)||document.querySelectorAll('.independent-surface').length===2)?resolve(true):Date.now()>end?resolve(false):setTimeout(tick,100);tick();})`,true);
 const before=await run('Performance.getMetrics');
 const domBefore=await run('Memory.getDOMCounters');
-await run('Profiler.enable');await run('Profiler.start');
-await call('Tracing.start',{categories:'toplevel,devtools.timeline,disabled-by-default-devtools.timeline,disabled-by-default-devtools.timeline.frame,blink.user_timing,cc,gpu,media,v8',options:'record-as-much-as-possible',transferMode:'ReturnAsStream'});
+if(!args.light){
+ await run('Profiler.enable');await run('Profiler.start');
+ await call('Tracing.start',{categories:args.deep?'toplevel,devtools.timeline,disabled-by-default-devtools.timeline,disabled-by-default-devtools.timeline.frame,disabled-by-default-devtools.timeline.layers,blink.user_timing,cc,gpu,viz,skia,media,v8,disabled-by-default-viz.quads,disabled-by-default-skia':'toplevel,devtools.timeline,disabled-by-default-devtools.timeline,disabled-by-default-devtools.timeline.frame,blink.user_timing,cc,gpu,media,v8',options:'record-as-much-as-possible',transferMode:'ReturnAsStream'});
+}
 const result=await evaluate(`(async()=>{
  const films=[...document.querySelectorAll('video.entry-film,video.journey-film')],story=document.querySelector('#story'),observations=films.map(()=>({seekTimes:[],presentations:[]})),raf=[],tasks=[],errors=[];
  let start=0,last=0,alive=true;const seekStarts=new WeakMap();
@@ -38,16 +40,18 @@ const result=await evaluate(`(async()=>{
  const initial=snapshot();const stops=${JSON.stringify(route)};
  await new Promise(resolve=>{const tick=now=>{if(!start)start=now;if(last)raf.push(now-last);last=now;const elapsed=(now-start)/1000;const segment=Math.min(stops.length-2,Math.floor(elapsed/${seconds/(8)})),p=Math.min(1,(elapsed-segment*${seconds/8})/${seconds/8});scrollTo(0,(stops[segment]+(stops[segment+1]-stops[segment])*p)*(document.documentElement.scrollHeight-innerHeight));if(elapsed<${seconds})requestAnimationFrame(tick);else resolve();};requestAnimationFrame(tick);});
  await new Promise(resolve=>setTimeout(resolve,300));alive=false;po.disconnect();listeners.forEach(fn=>fn());
- return {initial,final:snapshot(),raf,tasks,observations,errors,resources:performance.getEntriesByType('resource').filter(r=>['.mp4','.bin','manifest.json'].some(part=>r.name.includes(part))).map(r=>({name:r.name,duration:r.duration,transfer:r.transferSize,decoded:r.decodedBodySize}))};
+ return {initial,final:snapshot(),input:{start,end:last},raf,tasks,observations,errors,resources:performance.getEntriesByType('resource').filter(r=>['.mp4','.bin','manifest.json'].some(part=>r.name.includes(part))).map(r=>({name:r.name,duration:r.duration,transfer:r.transferSize,decoded:r.decodedBodySize}))};
 })()`,true);
-const profile=await run('Profiler.stop');await fs.writeFile(path.join(out,'cpu.cpuprofile'),JSON.stringify(profile.profile));
-const done=eventOnce('Tracing.tracingComplete');await call('Tracing.end');const traceEvent=await done;
-let trace='';for(;;){const chunk=await call('IO.read',{handle:traceEvent.params.stream});trace+=chunk.base64Encoded?Buffer.from(chunk.data,'base64').toString():chunk.data;if(chunk.eof)break;}await call('IO.close',{handle:traceEvent.params.stream});await fs.writeFile(path.join(out,'trace.json'),trace);
+if(!args.light){
+ const profile=await run('Profiler.stop');await fs.writeFile(path.join(out,'cpu.cpuprofile'),JSON.stringify(profile.profile));
+ const done=eventOnce('Tracing.tracingComplete');await call('Tracing.end');const traceEvent=await done;
+ let trace='';for(;;){const chunk=await call('IO.read',{handle:traceEvent.params.stream});trace+=chunk.base64Encoded?Buffer.from(chunk.data,'base64').toString():chunk.data;if(chunk.eof)break;}await call('IO.close',{handle:traceEvent.params.stream});await fs.writeFile(path.join(out,'trace.json'),trace);
+}
 const after=await run('Performance.getMetrics'),domAfter=await run('Memory.getDOMCounters');
 const metrics=Object.fromEntries(after.metrics.map(m=>[m.name,m.value-(before.metrics.find(b=>b.name===m.name)?.value||0)]));
 const quantile=(list,q)=>{const a=list.toSorted((a,b)=>a-b);return a.length?a[Math.min(a.length-1,Math.floor(a.length*q))]:null;};
 const summarize=list=>({count:list.length,p50:quantile(list,.5),p95:quantile(list,.95),max:Math.max(0,...list)});
-const summary={url:base,width,height,seconds,route:args.route||'story',raf:summarize(result.raf),mainThreadLongTasks:result.tasks,media:result.observations.map(o=>({seeks:summarize(o.seekTimes),presented:o.presentations.length,presentationIntervals:summarize(o.presentations.slice(1).map((p,i)=>p.at-o.presentations[i].at)),processing:summarize(o.presentations.map(p=>p.processing*1000))})),metrics,domBefore,domAfter,final:result.final};
+const summary={url:base,width,height,seconds,route:args.route||'story',recording:args.light?'frame-observer-only':'chrome-trace-and-cpu',raf:summarize(result.raf),mainThreadLongTasks:result.tasks,media:result.observations.map(o=>{const moving=o.presentations.filter(p=>p.at>=result.input.start&&p.at<=result.input.end);return {seeks:summarize(o.seekTimes),presented:o.presentations.length,presentationIntervals:summarize(o.presentations.slice(1).map((p,i)=>p.at-o.presentations[i].at)),whileScrolling:{presented:moving.length,intervals:summarize(moving.slice(1).map((p,i)=>p.at-moving[i].at))},processing:summarize(o.presentations.map(p=>p.processing*1000))};}),metrics,domBefore,domAfter,final:result.final};
 await fs.writeFile(path.join(out,'measurements.json'),JSON.stringify({summary,...result},null,2));await fs.writeFile(path.join(out,'media-events.json'),JSON.stringify(events.filter(e=>e.method?.startsWith('Media.')),null,2));
 if(args.network)await fs.writeFile(path.join(out,'network-events.json'),JSON.stringify(events.filter(e=>e.method?.startsWith('Network.')),null,2));
 console.log(JSON.stringify({out,summary},null,2));await call('Target.closeTarget',{targetId});socket.close();

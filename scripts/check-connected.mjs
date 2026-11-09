@@ -8,8 +8,9 @@ const references = [...new Set([...html.matchAll(/(?:src|srcset|href|data-src|da
 for (const file of references) assert(fs.existsSync(path.join('dist', file)), `Missing ${file}`);
 assert(!/<canvas|data-.*-manifest=/.test(html), 'Old frame player remains');
 const original = '../testicles';
-for (const file of ['src/style.css', 'src/story.css', 'src/main.js']) assert.equal(fs.readFileSync(file, 'utf8'), fs.readFileSync(path.join(original, file), 'utf8'), `Approved visual source changed: ${file}`);
-assert.equal(fs.readFileSync('src/entry.js','utf8').replace(/    if\(video.nextElementSibling\?\.classList.contains\('independent-surface'\)\)video.nextElementSibling.style.transform=transform;\r?\n/,''),fs.readFileSync(path.join(original,'src/entry.js'),'utf8'),'Camera geometry changed');
+for (const file of ['src/style.css', 'src/main.js']) assert.equal(fs.readFileSync(file, 'utf8'), fs.readFileSync(path.join(original, file), 'utf8'), `Approved visual source changed: ${file}`);
+assert.equal(fs.readFileSync('src/story.css','utf8').replace(/@media\(min-width:701px\)\{\.entry-crop\.frame-mask-ready\{mask-image:none\}\}\r?\n/,'').replace(/@media\(min-width:701px\)\{\.hero-art\{mask-image:none\}\.hero-art::after\{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient\(to bottom,var\(--paper\),transparent 12%,transparent 83%,var\(--paper\)\)\}\}\r?\n/,''),fs.readFileSync(path.join(original,'src/story.css'),'utf8'),'Story layout changed');
+assert.equal(fs.readFileSync('src/entry.js','utf8').replace(/    if\(video.nextElementSibling\?\.classList.contains\('independent-surface'\)\)video.nextElementSibling.style.transform=transform;\r?\n/,'').replace(/    get maskGeometry\(\)\{return geometry&&\{startBox:geometry.start,endBox:geometry.end,startFrame:geometry.startFrame,endFrame:geometry.endFrame\};\},\r?\n/,''),fs.readFileSync(path.join(original,'src/entry.js'),'utf8'),'Camera geometry changed');
 for (const file of ['hero-2k.mp4', 'hero-2k.webp', 'story-desktop-seek-60-2k.mp4']) {
   const hash = p => createHash('sha256').update(fs.readFileSync(p)).digest('hex');
   assert.equal(hash(`dist/assets/${file}`), hash(`${original}/public/assets/${file}`), `Media recompressed: ${file}`);
@@ -30,4 +31,4 @@ for (const file of fs.readdirSync('dist/assets').filter(f => /\.(mp4|webp)$/.tes
   assert(Math.max(info.width, info.height) >= 2048, `Below 2K: ${file}`);
   media.push({ file, ...info });
 }
-console.log(JSON.stringify({ status: 'passed', originalVisuals: 'original CSS, opening, geometry and main controls', decoder: 'independent 2K frames on desktop; original native phone path; native fallback', media }, null, 2));
+console.log(JSON.stringify({ status: 'passed', originalVisuals: 'original opening media, typography, layout, camera and controls; equivalent desktop mask rendering', decoder: 'independent 2K frames on desktop; original native phone path; native fallback', media }, null, 2));

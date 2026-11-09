@@ -1,5 +1,7 @@
 # Desktop stutter follow-up
 
+The remaining 95ms handoff issue was subsequently isolated and repaired; see [the mask-stall follow-up](95ms-mask-stall-2026-11-09.md). This document records the preceding build.
+
 Date: 9 November 2026. Live build: `index-DufBAYER.js`, worker `independent-worker-DsZkhA56.js`. Deployment: `dpl_HsPKzFoYWCtuE6j21Z7trctiiM39`.
 
 Published at [Vercel](https://testicles-xi.vercel.app/) and the [existing Windows host](https://testicles.84.32.214.33.sslip.io/). Both public endpoints returned the expected new bundle.

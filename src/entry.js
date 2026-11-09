@@ -103,6 +103,7 @@ export function createEntrance(root,narrow,storyDuration,reduce){
   }
 
   return {video,layer,share,duration,measure,update,
+    get maskGeometry(){return geometry&&{startBox:geometry.start,endBox:geometry.end,startFrame:geometry.startFrame,endFrame:geometry.endFrame};},
     start(){return Math.max(0,hero.offsetHeight-(narrow.matches?root.querySelector('.story-stage').clientHeight:innerHeight));},
     dispose(){disposed=true;wrapper.classList.remove('is-connected');wrapper.style.removeProperty('--hero-height');hero.style.removeProperty('opacity');hero.style.removeProperty('pointer-events');root.style.removeProperty('pointer-events');for(const node of chrome)node.style.removeProperty('opacity');captions?.style.removeProperty('opacity');hero.inert=false;canvas.inert=false;delete hero.dataset.departed;}
   };

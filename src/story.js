@@ -39,8 +39,9 @@ export function mountStory(root, reduce, narrow, gsap, ScrollTrigger) {
     media.dataset.ready = 'false'; media.dataset.phase = 'action'; entrance.layer.dataset.ready = 'false';
     const source = video => (narrow.matches && video.dataset.mobileSrc) || (!narrow.matches && video.dataset.desktopSrc) || video.dataset.src;
     const independent = !narrow.matches && typeof VideoDecoder !== 'undefined' && 'transferControlToOffscreen' in HTMLCanvasElement.prototype;
+    if(independent)entrance.measure();
     players = {
-      entry: independent ? createIndependentPlayer(entrance.video,{manifest:'/assets/scroll-frames-v2/entry/manifest.json',source:source(entrance.video),count:243,onReady:sync,onFrame:()=>{entrance.layer.dataset.ready='true';updateEntrance();}}) : createScrollVideo(entrance.video, { source: source(entrance.video), fps: narrow.matches ? 24 : 60, onFrame: () => { entrance.layer.dataset.ready = 'true'; updateEntrance(); } }),
+      entry: independent ? createIndependentPlayer(entrance.video,{manifest:'/assets/scroll-frames-v2/entry/manifest.json',source:source(entrance.video),count:243,maskGeometry:entrance.maskGeometry,onReady:sync,onFrame:()=>{entrance.layer.dataset.ready='true';updateEntrance();}}) : createScrollVideo(entrance.video, { source: source(entrance.video), fps: narrow.matches ? 24 : 60, onFrame: () => { entrance.layer.dataset.ready = 'true'; updateEntrance(); } }),
       story: independent ? createIndependentPlayer(film,{manifest:'/assets/scroll-frames-v2/story/manifest.json',source:source(film),count:1405,onReady:sync,onFrame:showStory}) : createScrollVideo(film, { source: source(film), fps: narrow.matches ? 24 : 60, onFrame: showStory }),
     };
     sync();
@@ -76,13 +77,14 @@ export function mountStory(root, reduce, narrow, gsap, ScrollTrigger) {
   }
   function configure() {
     context?.revert(); entrance.measure();
+    players?.entry.setMaskGeometry?.(entrance.maskGeometry);
     context = gsap.context(() => {
       const state = { value: 0 };
       gsap.set(captions, { opacity: 0, y: reduce.matches ? 0 : 14 });
       gsap.set(dialogue, { opacity: 0, y: reduce.matches ? 0 : 6 });
       timeline = gsap.timeline({ defaults: { ease: 'none' }, onUpdate: () => update(state.value), scrollTrigger: {
         trigger: root, start: () => `top top-=${entrance.start()}`, end: 'bottom bottom', scrub: reduce.matches ? .4 : narrow.matches ? .3 : .15,
-        onRefreshInit: () => entrance.measure(), invalidateOnRefresh: true, onRefresh: () => update(state.value),
+        onRefreshInit: () => {entrance.measure();players?.entry.setMaskGeometry?.(entrance.maskGeometry);}, invalidateOnRefresh: true, onRefresh: () => update(state.value),
       } });
       timeline.to(state, { value: 1, duration: 1 }, 0);
       for (const caption of captions) {
