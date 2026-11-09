@@ -26,6 +26,15 @@ for(const name of ['entry','story']){
  for(let i=0;i<v2.count;i++)assert.equal(fs.statSync(path.resolve('dist','.'+v2.frameBase+String(i).padStart(4,'0')+'.bin')).size,v2.packets[i][2]);
 }
 const media = [];
+const repaired=JSON.parse(fs.readFileSync('dist/assets/scroll-frames-v3/story/manifest.json','utf8'));
+assert.equal(repaired.width,2560);assert.equal(repaired.height,1440);assert.equal(repaired.fps,60);assert.equal(repaired.count,1405);
+assert(repaired.parts.reduce((sum,part)=>sum+part.bytes,0)<128*1024*1024,'Repaired stream exceeds the existing cache');
+for(let i=0;i<repaired.count;i++){
+ const file=`frames/${String(i).padStart(4,'0')}.bin`;
+ const frame=fs.readFileSync(`dist/assets/scroll-frames-v3/story/${file}`);
+ assert.equal(frame.length,repaired.packets[i][2]);
+ if(i<=585||i>=1050)assert(frame.equals(fs.readFileSync(`dist/assets/scroll-frames-v1/story/${file}`)),`Unchanged story frame altered: ${i}`);
+}
 for (const file of fs.readdirSync('dist/assets').filter(f => /\.(mp4|webp)$/.test(f))) {
   const info = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height,r_frame_rate', '-of', 'json', `dist/assets/${file}`], { encoding: 'utf8' })).streams[0];
   assert(Math.max(info.width, info.height) >= 2048, `Below 2K: ${file}`);

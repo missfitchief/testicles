@@ -49,7 +49,7 @@ for(const [i,position] of [.17,.88,.28,.98,.18,.76,.4].entries()){
  await evaluate(`scrollTo(0,${position}*(document.documentElement.scrollHeight-innerHeight))`);
  await new Promise(resolve=>setTimeout(resolve,350));
  checkpoints.push({jump:i,...await evaluate('__stress.snapshot()')});
- if([1,3,6].includes(i)){
+ if(args.screenshots!=='no'&&[1,3,6].includes(i)){
   const screenshot=await run('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
   await fs.writeFile(path.join(out,`checkpoint-${i}.png`),Buffer.from(screenshot.data,'base64'));
  }
